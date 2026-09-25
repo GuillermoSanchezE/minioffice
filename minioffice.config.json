@@ -1,0 +1,20 @@
+{
+  "agentes": [
+    {
+      "id": "ana",
+      "nombre": "Ana",
+      "rol": "Desarrolladora",
+      "comando": "claude",
+      "cwd": ".",
+      "escritorio": { "x": 2, "y": 2 }
+    },
+    {
+      "id": "beto",
+      "nombre": "Beto",
+      "rol": "Revisor de codigo",
+      "comando": "claude",
+      "cwd": ".",
+      "escritorio": { "x": 5, "y": 2 }
+    }
+  ]
+}

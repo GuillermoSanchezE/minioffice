@@ -1,0 +1,388 @@
+:root {
+  --fondo: #0f1218;
+  --panel: #171b24;
+  --panel-borde: #262c3a;
+  --texto: #e5e7eb;
+  --texto-suave: #8b93a7;
+  --acento: #34d399;
+  --acento-texto: #06281c;
+  --peligro: #ef4444;
+  --radio: 10px;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--fondo);
+  color: var(--texto);
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-size: 14px;
+  overflow: hidden;
+}
+
+h1,
+h2,
+p {
+  margin: 0;
+}
+
+h1 {
+  font-size: 17px;
+}
+
+h2 {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+code {
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 12px;
+  background: #222838;
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+
+.texto-suave {
+  color: var(--texto-suave);
+  font-size: 12px;
+}
+
+/* ------------------------------------------------------------------ layout */
+
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.barra-superior {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--panel-borde);
+}
+
+.marca {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.marca-logo {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: var(--acento);
+  color: var(--acento-texto);
+  font-weight: 800;
+  letter-spacing: -0.5px;
+}
+
+.contenido {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(360px, 2fr);
+  gap: 12px;
+  padding: 12px;
+}
+
+.columna-izquierda,
+.columna-derecha {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--panel-borde);
+  border-radius: var(--radio);
+  overflow: hidden;
+}
+
+.panel-cabecera {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--panel-borde);
+}
+
+.panel-cabecera > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* ------------------------------------------------------------------ oficina */
+
+.panel-oficina {
+  flex: 3;
+  min-height: 220px;
+}
+
+.piso-oficina {
+  width: 100%;
+  height: 100%;
+}
+
+.piso-oficina canvas {
+  display: block;
+}
+
+/* ------------------------------------------------------------------- equipo */
+
+.panel-equipo {
+  flex: none;
+}
+
+.lista-agentes {
+  list-style: none;
+  margin: 0;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.agente {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 8px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.agente:hover {
+  background: #1d2230;
+}
+
+.agente-activo {
+  background: #1f2636;
+  border-color: #34507a;
+}
+
+.agente-avatar,
+.mensaje-avatar {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  color: #0b0d12;
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.agente-datos {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.agente-estado {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--texto-suave);
+  white-space: nowrap;
+}
+
+.punto-estado {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+/* ----------------------------------------------------------------- terminal */
+
+.panel-terminal {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+.terminal-contenedor {
+  flex: 1;
+  min-height: 0;
+  background: #11141b;
+  padding: 6px 0 6px 8px;
+}
+
+.terminal-xterm {
+  width: 100%;
+  height: 100%;
+}
+
+.terminal-aviso {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(23, 27, 36, 0.92);
+  border: 1px solid var(--panel-borde);
+  color: var(--texto-suave);
+  font-size: 13px;
+}
+
+.panel-info {
+  flex: 1;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  line-height: 1.5;
+  color: var(--texto-suave);
+}
+
+.panel-info h2 {
+  color: var(--texto);
+}
+
+/* --------------------------------------------------------------------- chat */
+
+.panel-chat {
+  flex: 2;
+  min-height: 200px;
+  display: flex;
+  flex-direction: column;
+}
+
+.chat-feed {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.chat-vacio {
+  color: var(--texto-suave);
+  margin: auto;
+  text-align: center;
+  max-width: 420px;
+  line-height: 1.5;
+}
+
+.mensaje {
+  display: flex;
+  gap: 10px;
+}
+
+.mensaje-contenido {
+  min-width: 0;
+}
+
+.mensaje-meta {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.mensaje-contenido p {
+  margin-top: 2px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.45;
+}
+
+.mensaje-michael .mensaje-contenido p {
+  color: #cfd6e4;
+}
+
+.chat-formulario {
+  display: flex;
+  gap: 8px;
+  padding: 10px 12px;
+  border-top: 1px solid var(--panel-borde);
+  align-items: flex-end;
+}
+
+.chat-formulario select,
+.chat-formulario textarea {
+  background: #11141b;
+  color: var(--texto);
+  border: 1px solid var(--panel-borde);
+  border-radius: 8px;
+  font: inherit;
+  padding: 8px 10px;
+}
+
+.chat-formulario textarea {
+  flex: 1;
+  resize: none;
+}
+
+.chat-formulario select:focus,
+.chat-formulario textarea:focus {
+  outline: 2px solid #34507a;
+  outline-offset: -1px;
+}
+
+.chat-error {
+  color: var(--peligro);
+  font-size: 12px;
+  padding: 0 12px 10px;
+}
+
+/* ------------------------------------------------------------------ botones */
+
+.boton {
+  border: none;
+  border-radius: 8px;
+  padding: 8px 14px;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.boton:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.boton-primario {
+  background: var(--acento);
+  color: var(--acento-texto);
+}
+
+.boton-peligro {
+  background: #3a1d22;
+  color: #fca5a5;
+}

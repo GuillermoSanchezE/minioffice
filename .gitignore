@@ -1,0 +1,16 @@
+node_modules/
+out/
+dist/
+dist-electron/
+release/
+*.log
+npm-debug.log*
+.DS_Store
+.env
+.env.local
+
+# Memoria y buzones de los agentes: estado de tu maquina, con su propio git.
+.hive/
+
+# TypeScript build info
+*.tsbuildinfo

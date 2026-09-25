@@ -1,0 +1,42 @@
+{
+  "name": "minioffice",
+  "version": "0.1.0",
+  "description": "Oficina personal de agentes IA: orquesta sesiones de Claude Code con memoria y mensajeria compartidas, visualizadas en una oficina 2D. Proyecto personal, uso privado.",
+  "main": "./out/main/index.js",
+  "private": true,
+  "author": "Guillermo Sanchez",
+  "license": "UNLICENSED",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/GuillermoSanchezE/minioffice.git"
+  },
+  "bugs": {
+    "url": "https://github.com/GuillermoSanchezE/minioffice/issues"
+  },
+  "homepage": "https://github.com/GuillermoSanchezE/minioffice#readme",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "start": "electron-vite preview",
+    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json"
+  },
+  "dependencies": {
+    "@xterm/addon-fit": "0.10.0",
+    "@xterm/xterm": "5.5.0",
+    "node-pty": "1.1.0",
+    "pixi.js": "8.21.0",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "simple-git": "3.36.0"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.4",
+    "@types/react": "18.3.31",
+    "@types/react-dom": "18.3.7",
+    "@vitejs/plugin-react": "5.2.0",
+    "electron": "44.4.5",
+    "electron-vite": "5.0.0",
+    "typescript": "5.9.3",
+    "vite": "7.3.6"
+  }
+}
