@@ -9,6 +9,7 @@ const CSP = [
   "script-src 'self'",
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob:",
+  "font-src 'self' data:",
   "worker-src 'self' blob:",
   "connect-src 'self'"
 ].join('; ')
@@ -43,7 +44,10 @@ export default defineConfig({
     root: resolve(__dirname, 'src/renderer'),
     build: {
       rollupOptions: {
-        input: { index: resolve(__dirname, 'src/renderer/index.html') }
+        input: {
+          index: resolve(__dirname, 'src/renderer/index.html'),
+          grapadora: resolve(__dirname, 'src/renderer/grapadora.html')
+        }
       }
     },
     plugins: [react(), cspEnProduccion()]

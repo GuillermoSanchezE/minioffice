@@ -1,25 +1,23 @@
-import { EventEmitter } from 'node:events'
-import type { AgentDefinition, HiveMessage } from '../../shared/types'
-import type { HiveStore } from './hiveStore'
+import type { HiveStore, PendienteDeEnvio } from './hiveStore'
 
 const INTERVALO_MS = 500
 
 /**
- * Revisa la bandeja de salida de cada agente y entrega los mensajes en la
- * bandeja de entrada del destinatario. Es el unico que mueve mensajes entre
- * buzones y el unico que hace commit, asi no hay carreras en el hive.
- * Evento: 'mensaje' (HiveMessage) por cada entrega.
+ * Revisa la bandeja de salida de cada agente y le pasa cada mensaje valido a
+ * `procesar`, que decide que hacer con el (entregarlo, convertirlo en pregunta
+ * para el usuario, reenviarlo a otra oficina). Es el unico que hace commit de
+ * los envios, asi no hay carreras en el hive.
  */
-export class MailboxRouter extends EventEmitter {
+export class MailboxRouter {
   private temporizador: NodeJS.Timeout | null = null
   private revisando = false
 
   constructor(
     private hive: HiveStore,
-    private agentes: AgentDefinition[]
-  ) {
-    super()
-  }
+    private ids: () => string[],
+    private destinoValido: (para: string) => boolean,
+    private procesar: (pendiente: PendienteDeEnvio) => void
+  ) {}
 
   iniciar(): void {
     if (this.temporizador) return
@@ -36,15 +34,14 @@ export class MailboxRouter extends EventEmitter {
     if (this.revisando) return
     this.revisando = true
     try {
-      let entregados = 0
-      for (const agente of this.agentes) {
-        for (const pendiente of this.hive.listarPendientesDeEnvio(agente.id)) {
-          this.hive.entregar(pendiente)
-          this.emit('mensaje', pendiente.mensaje satisfies HiveMessage)
-          entregados++
+      let procesados = 0
+      for (const id of this.ids()) {
+        for (const pendiente of this.hive.listarPendientesDeEnvio(id, this.destinoValido)) {
+          this.procesar(pendiente)
+          procesados++
         }
       }
-      if (entregados > 0) await this.hive.commit(`Entregar ${entregados} mensaje(s)`)
+      if (procesados > 0) await this.hive.commit(`Entregar ${procesados} mensaje(s)`)
     } catch (err) {
       console.error('Error en el router de buzones:', err)
     } finally {

@@ -133,8 +133,9 @@ interface Sobre {
 const limitar = (v: number, min: number, max: number): number => Math.min(max, Math.max(min, v))
 const azar = <T>(lista: T[]): T => lista[Math.floor(Math.random() * lista.length)]
 
+/** Libres (sin trabajo) o sin sesion pasean; el resto se queda en su escritorio. */
 function debeEstarSentado(estado: AgentStatus): boolean {
-  return estado !== 'inactivo'
+  return estado !== 'inactivo' && estado !== 'detenido'
 }
 
 /**
@@ -161,6 +162,7 @@ export class EscenaOficina {
   private tiempo = 0
   private tamano = { ancho: 0, alto: 0 }
   private mostrarNombres = true
+  private paseos = true
 
   private camara = { zoom: 1, x: 0, y: 0 }
   private arrastre: { px: number; py: number; x: number; y: number } | null = null
@@ -225,7 +227,22 @@ export class EscenaOficina {
         actor.herramienta = agente.herramienta
         actor.punto.tint = COLOR_PUNTO[agente.estado]
       }
+      const vigentes = new Set(agentes.map((a) => a.id))
+      for (const actor of [...this.actores.values()]) if (!vigentes.has(actor.id)) this.quitarActor(actor)
     })
+  }
+
+  /** Alguien dejo la oficina: se va su personaje y su escritorio queda libre. */
+  private quitarActor(actor: Actor): void {
+    for (const pieza of [actor.cuerpo, actor.halo, actor.seleccion, actor.etiqueta, actor.globo, actor.zzz]) pieza.destroy({ children: true })
+    actor.pantalla.tint = PANTALLA.detenido
+    this.escritoriosOcupados.delete(actor.asiento)
+    this.sobres = this.sobres.filter((s) => {
+      const suelto = s.de === actor || s.para === actor
+      if (suelto) s.g.destroy()
+      return !suelto
+    })
+    this.actores.delete(actor.id)
   }
 
   seleccionar(agentId: string | null): void {
@@ -235,6 +252,11 @@ export class EscenaOficina {
 
   verNombres(visible: boolean): void {
     this.mostrarNombres = visible
+  }
+
+  /** Sin paseos, todos vuelven a su escritorio y se quedan ahi. */
+  permitirPaseos(si: boolean): void {
+    this.paseos = si
   }
 
   enviarSobre(deId: string, paraId: string): void {
@@ -440,7 +462,7 @@ export class EscenaOficina {
   }
 
   private decidir(actor: Actor): void {
-    const sentarse = debeEstarSentado(actor.estado)
+    const sentarse = debeEstarSentado(actor.estado) || !this.paseos
     if (sentarse) {
       const yendoAlEscritorio = actor.modo === 'caminando' && actor.alLlegar === 'sentarse'
       if (actor.modo !== 'sentado' && !yendoAlEscritorio) this.volverAlEscritorio(actor)
@@ -477,7 +499,8 @@ export class EscenaOficina {
     if (actor.alLlegar === 'sentarse') {
       actor.modo = 'sentado'
       actor.pos = puntoSentado(actor.asiento)
-      actor.proximaSalida = this.tiempo + 12000 + Math.random() * 30000
+      // Quien no tiene sesion dormita mas rato antes de levantarse otra vez.
+      actor.proximaSalida = this.tiempo + (actor.estado === 'detenido' ? 25000 + Math.random() * 45000 : 12000 + Math.random() * 30000)
     } else {
       actor.modo = 'de-pie'
       actor.mirada = actor.alLlegar.mirada
@@ -491,7 +514,7 @@ export class EscenaOficina {
   private textura(actor: Actor): { textura: Texture; espejo: boolean } {
     const s = actor.sprites
     const t = this.tiempo
-    const despierto = actor.estado !== 'detenido'
+    const despierto = actor.estado !== 'detenido' || actor.modo !== 'sentado'
     if (despierto && t >= actor.proximoParpadeo) {
       actor.finParpadeo = t + 130
       actor.proximoParpadeo = t + 2500 + Math.random() * 4000

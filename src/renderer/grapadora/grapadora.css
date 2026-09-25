@@ -1,0 +1,135 @@
+@import '@fontsource/jetbrains-mono/600.css';
+
+html,
+body,
+#root {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  background: transparent;
+  overflow: hidden;
+  user-select: none;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+}
+
+.grapadora {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  transition: opacity 0.2s;
+}
+
+.criatura {
+  cursor: grab;
+  filter: drop-shadow(0 3px 5px rgba(20, 12, 24, 0.25));
+  transition: transform 0.15s;
+  z-index: 2;
+}
+
+.criatura:hover {
+  transform: scale(1.05);
+}
+
+.criatura:active {
+  cursor: grabbing;
+}
+
+.opcion-radial {
+  position: absolute;
+  left: calc(50% - 21px);
+  top: calc(50% - 21px);
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  border: 2px solid #2a1f26;
+  background: #fef5e6;
+  color: #2a1f26;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  box-shadow: 0 2px 0 #2a1f26;
+  animation: salir 0.18s ease-out;
+  z-index: 3;
+}
+
+.opcion-radial:hover {
+  background: #d9a441;
+}
+
+.opcion-radial span {
+  position: absolute;
+  top: 44px;
+  white-space: nowrap;
+  font-size: 10px;
+  background: #2a1f26;
+  color: #fef5e6;
+  padding: 2px 6px;
+  border-radius: 4px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s;
+}
+
+.opcion-radial:hover span {
+  opacity: 1;
+}
+
+@keyframes salir {
+  from {
+    transform: translate(0, 0) scale(0.4);
+    opacity: 0;
+  }
+}
+
+.insignia-grapadora {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 9px;
+  background: #c0504d;
+  color: #fff;
+  font-size: 11px;
+  display: grid;
+  place-items: center;
+  border: 2px solid #fef5e6;
+  z-index: 4;
+}
+
+.pedir {
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  right: 12px;
+  z-index: 5;
+}
+
+.pedir input {
+  width: 100%;
+  box-sizing: border-box;
+  font: inherit;
+  font-size: 12px;
+  padding: 8px 10px;
+  border: 2px solid #2a1f26;
+  border-radius: 8px;
+  background: #fef5e6;
+  outline: none;
+}
+
+.aviso-grapadora {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  font-size: 11px;
+  background: #2a1f26;
+  color: #fef5e6;
+  padding: 4px 8px;
+  border-radius: 6px;
+  z-index: 6;
+}

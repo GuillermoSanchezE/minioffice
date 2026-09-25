@@ -1,6 +1,6 @@
 {
   "name": "minioffice",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "description": "Oficina personal de agentes IA: orquesta sesiones de Claude Code con memoria y mensajeria compartidas, visualizadas en una oficina 2D. Proyecto personal, uso privado.",
   "main": "./out/main/index.js",
   "private": true,

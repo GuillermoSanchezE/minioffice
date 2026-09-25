@@ -1,51 +1,114 @@
 import { app, BrowserWindow, screen } from 'electron'
 import { join } from 'node:path'
-import { cargarConfig } from './config'
-import { HiveStore } from './hive/hiveStore'
-import { MailboxRouter } from './hive/mailboxRouter'
-import { PtyManager } from './pty/ptyManager'
-import { registrarIpc } from './ipc/handlers'
+import { IPC } from '../shared/ipc-channels'
+import type { Accion } from '../shared/acciones'
+import { ID_MICHAEL } from '../shared/reparto'
+import { Oficina } from './oficina'
+import { registrarIpc } from './ipc'
+import { Capacidades } from './capacidades'
+import { Grapadora } from './grapadora'
 
 const raizProyecto = process.cwd()
-const { agentes } = cargarConfig(raizProyecto)
-const hive = new HiveStore(raizProyecto)
-const router = new MailboxRouter(hive, agentes)
-const ptyManager = new PtyManager()
+let ventanaPrincipal: BrowserWindow | null = null
+const oficina = new Oficina(raizProyecto, () => ventanaPrincipal)
+const capacidades = new Capacidades(() => oficina.equipo())
+const preload = join(__dirname, '../preload/index.js')
+
+function urlRenderer(pagina: string): { url?: string; archivo?: string } {
+  const dev = process.env['ELECTRON_RENDERER_URL']
+  return dev ? { url: `${dev}/${pagina}` } : { archivo: join(__dirname, '../renderer', pagina) }
+}
+
+const grapadora = new Grapadora({
+  hiveRaiz: oficina.hive.raiz,
+  leer: () => oficina.hive.leerArchivoLibre('grapadora.json'),
+  guardar: (a) => oficina.hive.guardarArchivoLibre('grapadora.json', a),
+  mensaje: (para, texto) => oficina.mensajeDeUsuario(para, texto),
+  evento: (texto) => oficina.registrarEvento('sistema', texto),
+  urlRenderer,
+  preload
+})
+
+function enfocar(pestana?: string): void {
+  if (!ventanaPrincipal) {
+    void crearVentana().then(() => pestana && ventanaPrincipal?.webContents.send(IPC.navegar, pestana))
+    return
+  }
+  if (ventanaPrincipal.isMinimized()) ventanaPrincipal.restore()
+  ventanaPrincipal.show()
+  ventanaPrincipal.focus()
+  if (pestana) ventanaPrincipal.webContents.send(IPC.navegar, pestana)
+}
+
+oficina.ejecutarExtra = async (a: Accion) => {
+  switch (a.tipo) {
+    case 'capacidades:listar':
+      return capacidades.listar()
+    case 'capacidades:catalogo':
+      return capacidades.catalogo()
+    case 'capacidades:instalar': {
+      const r = await capacidades.instalar(a.nombre, a.tipoCapacidad)
+      oficina.registrarEvento('sistema', `Instalado ${a.nombre} (${a.tipoCapacidad})`)
+      return r
+    }
+    case 'grapadora:captura':
+      return grapadora.capturar(a.enviarA === 'michael' ? ID_MICHAEL : a.enviarA)
+    case 'grapadora:capturas':
+      return grapadora.capturas()
+    case 'grapadora:borrarCaptura':
+      return grapadora.borrarCaptura(a.archivo)
+    case 'grapadora:visible':
+      return grapadora.visible(a.visible)
+    case 'grapadora:ajustes':
+      return grapadora.guardarAjustes(a.ajustes)
+    case 'grapadora:leerAjustes':
+      return grapadora.ajustes()
+    case 'grapadora:mover':
+      return grapadora.mover(a.dx, a.dy)
+    case 'grapadora:menu':
+      return grapadora.menu(a.abierto)
+    case 'ventana:enfocar':
+      return enfocar(a.pestana)
+    default:
+      throw new Error(`Acción no disponible: ${a.tipo}`)
+  }
+}
 
 async function crearVentana(): Promise<void> {
   const pantalla = screen.getPrimaryDisplay().workAreaSize
   const ventana = new BrowserWindow({
     width: Math.min(1600, pantalla.width),
     height: Math.min(1000, pantalla.height),
-    minWidth: 960,
-    minHeight: 600,
+    minWidth: 1024,
+    minHeight: 640,
     title: 'minioffice',
-    backgroundColor: '#0f1218',
+    backgroundColor: '#f6ecd9',
     autoHideMenuBar: true,
-    webPreferences: {
-      preload: join(__dirname, '../preload/index.js'),
-      sandbox: true
-    }
+    webPreferences: { preload, sandbox: true }
   })
-
+  ventanaPrincipal = ventana
+  ventana.on('closed', () => {
+    if (ventanaPrincipal !== ventana) return
+    ventanaPrincipal = null
+    // Sin la oficina, la grapadora no tiene a quien hablarle (salvo en macOS, donde la app sigue viva).
+    if (process.platform !== 'darwin') grapadora.cerrar()
+  })
   ventana.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
 
-  if (process.env['ELECTRON_RENDERER_URL']) {
-    await ventana.loadURL(process.env['ELECTRON_RENDERER_URL'])
-  } else {
-    await ventana.loadFile(join(__dirname, '../renderer/index.html'))
-  }
+  const destino = urlRenderer('index.html')
+  if (destino.url) await ventana.loadURL(destino.url)
+  else await ventana.loadFile(destino.archivo!)
 }
 
 app.whenReady().then(async () => {
-  await hive.inicializar(agentes)
-  router.iniciar()
-  registrarIpc({ agentes, hive, router, ptyManager })
+  registrarIpc(oficina, (v) => !grapadora.esVentana(v))
+  await oficina.iniciar()
   await crearVentana()
+  grapadora.iniciar()
 
   // macOS: la app sigue viva sin ventanas y se reabre desde el dock.
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) void crearVentana()
+    if (!ventanaPrincipal) void crearVentana()
   })
 })
 
@@ -54,6 +117,6 @@ app.on('window-all-closed', () => {
 })
 
 app.on('will-quit', () => {
-  router.detener()
-  ptyManager.detenerTodo()
+  grapadora.cerrar()
+  oficina.apagar()
 })
