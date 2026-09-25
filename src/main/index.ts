@@ -1,4 +1,4 @@
-import { app, BrowserWindow, screen } from 'electron'
+import { app, BrowserWindow, dialog, screen } from 'electron'
 import { join } from 'node:path'
 import { IPC } from '../shared/ipc-channels'
 import type { Accion } from '../shared/acciones'
@@ -7,11 +7,12 @@ import { Oficina } from './oficina'
 import { registrarIpc } from './ipc'
 import { Capacidades } from './capacidades'
 import { Grapadora } from './grapadora'
+import { carpetaDelProyecto, heredarPathDeLaShell, pedirCarpeta, reabrirEn, recordarProyecto } from './entorno'
 
-const raizProyecto = process.cwd()
 let ventanaPrincipal: BrowserWindow | null = null
-const oficina = new Oficina(raizProyecto, () => ventanaPrincipal)
-const capacidades = new Capacidades(() => oficina.equipo())
+let oficina: Oficina
+let capacidades: Capacidades
+let grapadora: Grapadora
 const preload = join(__dirname, '../preload/index.js')
 
 function urlRenderer(pagina: string): { url?: string; archivo?: string } {
@@ -19,15 +20,20 @@ function urlRenderer(pagina: string): { url?: string; archivo?: string } {
   return dev ? { url: `${dev}/${pagina}` } : { archivo: join(__dirname, '../renderer', pagina) }
 }
 
-const grapadora = new Grapadora({
-  hiveRaiz: oficina.hive.raiz,
-  leer: () => oficina.hive.leerArchivoLibre('grapadora.json'),
-  guardar: (a) => oficina.hive.guardarArchivoLibre('grapadora.json', a),
-  mensaje: (para, texto) => oficina.mensajeDeUsuario(para, texto),
-  evento: (texto) => oficina.registrarEvento('sistema', texto),
-  urlRenderer,
-  preload
-})
+function montar(raiz: string): void {
+  oficina = new Oficina(raiz, () => ventanaPrincipal)
+  capacidades = new Capacidades(() => oficina.equipo())
+  grapadora = new Grapadora({
+    hiveRaiz: oficina.hive.raiz,
+    leer: () => oficina.hive.leerArchivoLibre('grapadora.json'),
+    guardar: (a) => oficina.hive.guardarArchivoLibre('grapadora.json', a),
+    mensaje: (para, texto) => oficina.mensajeDeUsuario(para, texto),
+    evento: (texto) => oficina.registrarEvento('sistema', texto),
+    urlRenderer,
+    preload
+  })
+  oficina.ejecutarExtra = ejecutarExtra
+}
 
 function enfocar(pestana?: string): void {
   if (!ventanaPrincipal) {
@@ -40,7 +46,7 @@ function enfocar(pestana?: string): void {
   if (pestana) ventanaPrincipal.webContents.send(IPC.navegar, pestana)
 }
 
-oficina.ejecutarExtra = async (a: Accion) => {
+async function ejecutarExtra(a: Accion): Promise<unknown> {
   switch (a.tipo) {
     case 'capacidades:listar':
       return capacidades.listar()
@@ -69,6 +75,11 @@ oficina.ejecutarExtra = async (a: Accion) => {
       return grapadora.menu(a.abierto)
     case 'ventana:enfocar':
       return enfocar(a.pestana)
+    case 'proyecto:cambiar': {
+      const ruta = await pedirCarpeta('Abrir otro proyecto', oficina.raiz)
+      if (ruta && ruta !== oficina.raiz) reabrirEn(ruta)
+      return
+    }
     default:
       throw new Error(`Acción no disponible: ${a.tipo}`)
   }
@@ -101,6 +112,20 @@ async function crearVentana(): Promise<void> {
 }
 
 app.whenReady().then(async () => {
+  if (app.isPackaged) heredarPathDeLaShell()
+  const raiz = await carpetaDelProyecto()
+  if (!raiz) {
+    app.quit()
+    return
+  }
+  try {
+    montar(raiz)
+    recordarProyecto(raiz)
+  } catch (err) {
+    dialog.showErrorBox('minioffice no pudo abrir el proyecto', `${raiz}\n\n${(err as Error).message}`)
+    app.quit()
+    return
+  }
   registrarIpc(oficina, (v) => !grapadora.esVentana(v))
   await oficina.iniciar()
   await crearVentana()
@@ -117,6 +142,6 @@ app.on('window-all-closed', () => {
 })
 
 app.on('will-quit', () => {
-  grapadora.cerrar()
-  oficina.apagar()
+  grapadora?.cerrar()
+  oficina?.apagar()
 })

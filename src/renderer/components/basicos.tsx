@@ -96,6 +96,7 @@ const RUTAS: Record<string, string> = {
   mas: 'M12 5v14M5 12h14',
   terminal: 'M4 5h16v14H4zM7 9l3 3-3 3m5 0h5',
   monitor: 'M3 13h4l3-7 4 12 3-5h4',
+  consumo: 'M4 20V10m6 10V4m6 16v-7m4 7H3',
   tareas: 'M4 6h2m4 0h10M4 12h2m4 0h10M4 18h2m4 0h10',
   campana: 'M6 16V11a6 6 0 1 1 12 0v5l2 2H4l2-2Zm4 4h4',
   bandeja: 'M3 13l3-8h12l3 8v6H3v-6Zm0 0h5l1 3h6l1-3h5',

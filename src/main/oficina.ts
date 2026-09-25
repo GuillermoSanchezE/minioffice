@@ -11,6 +11,7 @@ import type {
   Agente,
   AgentDefinition,
   AgentRuntime,
+  EstadoPlan,
   AgentStatus,
   Ajustes,
   EventoActividad,
@@ -34,6 +35,7 @@ import { estadoGit, worktreePara } from './git'
 import { Temporales } from './temporales'
 import { Disparadores } from './disparadores'
 import { Biblioteca } from './skills'
+import { Consumo } from './consumo'
 import { NOMBRE_SKILL_VALIDO, sugeridasPara } from '../shared/skills'
 
 const TICK_MS = 400
@@ -94,6 +96,10 @@ export class Oficina extends EventEmitter {
   readonly temporales: Temporales
   readonly disparadores: Disparadores
   readonly biblioteca: Biblioteca
+  readonly consumo: Consumo
+  private plan: EstadoPlan | null = null
+  private ultimaLecturaPlan = 0
+  private ultimoGuardadoConsumo = 0
   private ajustesActuales: Ajustes
   private mensajes: HiveMessage[] = []
   private tareas: Tarea[] = []
@@ -110,6 +116,8 @@ export class Oficina extends EventEmitter {
     this.hive = new HiveStore(raiz)
     this.defs = cargarEquipo(raiz)
     this.ajustesActuales = this.hive.leerAjustes()
+    this.consumo = new Consumo(this.hive.raiz)
+    this.plan = this.consumo.leerPlan()
     this.biblioteca = new Biblioteca(
       () => this.defs,
       raiz,
@@ -163,6 +171,7 @@ export class Oficina extends EventEmitter {
     this.temporales.detenerTodo()
     for (const s of this.seguidores.values()) s.detener()
     this.sesiones.detenerTodo()
+    this.consumo.guardar()
   }
 
   // ---------------------------------------------------------------- estado
@@ -209,7 +218,8 @@ export class Oficina extends EventEmitter {
       preguntas: this.preguntas,
       actividad: this.actividad,
       ajustes: this.ajustesActuales,
-      temporales: this.temporales.todos()
+      temporales: this.temporales.todos(),
+      plan: this.plan
     }
   }
 
@@ -239,6 +249,16 @@ export class Oficina extends EventEmitter {
     for (const def of this.defs) this.actualizarAgente(def)
     this.procesarColas()
     this.emitir('agentes')
+    const ahora = Date.now()
+    if (ahora - this.ultimaLecturaPlan > 5000) {
+      this.ultimaLecturaPlan = ahora
+      this.plan = this.consumo.leerPlan()
+      this.emitir('plan')
+    }
+    if (ahora - this.ultimoGuardadoConsumo > 15_000) {
+      this.ultimoGuardadoConsumo = ahora
+      this.consumo.guardar()
+    }
   }
 
   private revisarDisco(): void {
@@ -262,6 +282,7 @@ export class Oficina extends EventEmitter {
       rt.modeloReal = r.modelo
       rt.ultimoTexto = r.ultimoTexto
       rt.ventana = ventanaDe(def.modelo || r.modelo)
+      if (rt.sesionId) this.consumo.registrar(def.id, rt.sesionId, seguidor.drenarUsos())
     } else if (!this.sesiones.activa(def.id)) {
       rt.herramienta = undefined
     }
@@ -348,6 +369,7 @@ export class Oficina extends EventEmitter {
     const [, ...args] = comandoBase(def, this.ajustesActuales.modoPermisos)
     if (def.proveedor === 'claude' && sesionId) {
       if (plugin) args.push('--plugin-dir', plugin)
+      args.push('--settings', this.consumo.settings(def.id))
       args.push(
         '--append-system-prompt',
         instruccionesPara(def, this.defs, this.hive.raiz, this.ajustesActuales.enfoque),
@@ -906,6 +928,8 @@ Todo en español.`
         return [...new Set([this.raiz, ...this.defs.map((d) => d.cwd)])]
       case 'webhook:info':
         return this.disparadores.info()
+      case 'consumo:historial':
+        return this.consumo.historial(a.desde)
       case 'skills:listar':
         return this.biblioteca.listar()
       case 'skills:instalar': {

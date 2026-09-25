@@ -194,6 +194,31 @@ export interface PtyOutputPayload {
   data: string
 }
 
+/** Porcentaje usado de un límite del plan de Claude y cuándo se reinicia (ms). */
+export interface LimitePlan {
+  porcentaje: number
+  reinicia: number
+}
+
+export interface EstadoPlan {
+  /** Ventana de uso de 5 horas. */
+  cincoHoras?: LimitePlan
+  /** Límite semanal. */
+  semana?: LimitePlan
+  actualizado: number
+  /** Agente cuya sesión reportó el dato. */
+  agente?: string
+}
+
+export interface HoraConsumo {
+  /** Inicio de la hora, en ms. */
+  hora: number
+  tokens: number
+  costo: number
+  agentes: Record<string, number>
+  modelos: Record<string, number>
+}
+
 export interface Instantanea {
   version: string
   raiz: string
@@ -204,6 +229,7 @@ export interface Instantanea {
   actividad: EventoActividad[]
   ajustes: Ajustes
   temporales: Temporal[]
+  plan: EstadoPlan | null
 }
 
 export type Dominio = Exclude<keyof Instantanea, 'version' | 'raiz'>

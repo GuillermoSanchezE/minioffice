@@ -1,0 +1,44 @@
+name: Instalador para Mac
+
+# Se lanza a mano desde la pestaña Actions o al subir una etiqueta v* (p. ej. v0.4.0).
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  mac:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Revisar tipos
+        run: npm run typecheck
+
+      - name: Construir el .dmg (Apple Silicon e Intel)
+        run: npm run dist:mac
+
+      - name: Comprobar la firma ad hoc
+        run: codesign --verify --deep --verbose=2 dist/mac-arm64/minioffice.app
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: minioffice-mac
+          path: dist/*.dmg
+          retention-days: 30
+
+      - name: Publicar en Releases (solo con etiqueta)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.dmg

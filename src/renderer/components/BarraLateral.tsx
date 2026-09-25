@@ -14,6 +14,7 @@ const SECCIONES: Array<{ id: Pestana; nombre: string; icono: string }> = [
   { id: 'disparadores', nombre: 'Automatizaciones', icono: 'reloj' },
   { id: 'memoria', nombre: 'Memoria', icono: 'chispa' },
   { id: 'grafo', nombre: 'Grafo', icono: 'grafo' },
+  { id: 'consumo', nombre: 'Consumo', icono: 'consumo' },
   { id: 'monitor', nombre: 'Monitor', icono: 'monitor' },
   { id: 'actividad', nombre: 'Actividad', icono: 'actividad' },
   { id: 'comandos', nombre: 'Comandos', icono: 'codigo' },

@@ -18,6 +18,15 @@ export function rutaTranscripcion(cwd: string, sesionId: string): string {
   return join(carpetaClaude(), 'projects', cwd.replace(/[^a-zA-Z0-9]/g, '-'), `${sesionId}.jsonl`)
 }
 
+/** Consumo de un mensaje de Claude, con su hora real (para el historial de uso). */
+export interface UsoMensaje {
+  id: string
+  ts: number
+  tokens: number
+  costo: number
+  modelo?: string
+}
+
 export interface ResumenSesion {
   herramienta?: string
   detalle?: string
@@ -90,6 +99,7 @@ export class SeguidorTranscripcion extends EventEmitter {
   private trazas = new Map<string, Traza>()
   private pendientes = new Set<string>()
   private usos = new Map<string, Uso & { modelo?: string }>()
+  private nuevos = new Map<string, UsoMensaje>()
   private llamadas = 0
   private contexto = 0
   private modelo?: string
@@ -177,6 +187,13 @@ export class SeguidorTranscripcion extends EventEmitter {
       if (mensaje.usage && mensaje.id) {
         this.usos.set(mensaje.id, { ...mensaje.usage, modelo: this.modelo })
         const u = mensaje.usage
+        this.nuevos.set(mensaje.id, {
+          id: mensaje.id,
+          ts,
+          tokens: (u.input_tokens ?? 0) + (u.cache_creation_input_tokens ?? 0) + (u.output_tokens ?? 0),
+          costo: costoDe(this.modelo, u),
+          modelo: this.modelo
+        })
         this.contexto =
           (u.input_tokens ?? 0) + (u.cache_creation_input_tokens ?? 0) + (u.cache_read_input_tokens ?? 0) + (u.output_tokens ?? 0)
       }
@@ -268,6 +285,13 @@ export class SeguidorTranscripcion extends EventEmitter {
       pendienteDesde: actual?.ts,
       mensajesUsuario: this.mensajesUsuario
     }
+  }
+
+  /** Mensajes con consumo nuevo o actualizado desde la última llamada. */
+  drenarUsos(): UsoMensaje[] {
+    const lista = [...this.nuevos.values()]
+    this.nuevos.clear()
+    return lista
   }
 
   listaTrazas(): Traza[] {

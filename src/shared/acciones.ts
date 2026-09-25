@@ -4,6 +4,7 @@ import type {
   Ajustes,
   EstadoGit,
   HiveMessage,
+  HoraConsumo,
   ProveedorId,
   Tarea,
   Temporal,
@@ -115,6 +116,7 @@ export type Accion =
   | { tipo: 'capacidades:listar' }
   | { tipo: 'capacidades:catalogo' }
   | { tipo: 'capacidades:instalar'; nombre: string; tipoCapacidad: CatalogoItem['tipo'] }
+  | { tipo: 'consumo:historial'; desde: number }
   | { tipo: 'skills:listar' }
   | { tipo: 'skills:instalar'; nombres: string[] }
   | { tipo: 'skills:desinstalar'; nombre: string }
@@ -130,6 +132,7 @@ export type Accion =
   | { tipo: 'grapadora:mover'; dx: number; dy: number }
   | { tipo: 'grapadora:menu'; abierto: boolean }
   | { tipo: 'ventana:enfocar'; pestana?: string }
+  | { tipo: 'proyecto:cambiar' }
   | { tipo: 'webhook:info' }
 
 export interface AjustesGrapadora {
@@ -172,6 +175,7 @@ export interface RespuestaDe {
   'capacidades:listar': Capacidad[]
   'capacidades:catalogo': CatalogoItem[]
   'capacidades:instalar': string
+  'consumo:historial': HoraConsumo[]
   'skills:listar': SkillOficina[]
   'skills:instalar': string
   'skills:sugeridas': string

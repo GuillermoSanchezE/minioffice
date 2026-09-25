@@ -2,10 +2,12 @@ import { MODOS_PERMISOS } from '../../shared/motores'
 import { useAgentes, useOficina } from '../tienda'
 import { cambiarUi, useUi } from '../ui'
 import { Icono } from './basicos'
+import { IndicadorPlan } from './pestanas/Consumo'
 
 export function BarraTitulo(): JSX.Element {
   const version = useOficina((e) => e.version)
   const modo = useOficina((e) => e.ajustes.modoPermisos)
+  const plan = useOficina((e) => e.plan)
   const agentes = useAgentes()
   const { tema, pantallaCompleta } = useUi()
   const vivos = agentes.filter((a) => a.rt.estado !== 'detenido' && a.rt.estado !== 'error').length
@@ -21,6 +23,7 @@ export function BarraTitulo(): JSX.Element {
       <span className="version mono">v{version ?? '…'}</span>
       <span className="suave">{modo && modo !== 'manual' ? `modo ${nombreModo} activado` : 'modo manual'}</span>
       <span className="espaciador" />
+      <IndicadorPlan plan={plan} onClick={() => cambiarUi({ pestana: 'consumo', seleccionado: null })} />
       <span className="suave pequeno estado-oficina">
         <span className={`vivo ${vivos ? 'vivo-on' : ''}`} /> {vivos} con sesión · {trabajando} trabajando
       </span>

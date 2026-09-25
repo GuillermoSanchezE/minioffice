@@ -4,6 +4,7 @@ import type { AgentDefinition } from '../shared/types'
 export type Pestana =
   | 'terminal'
   | 'monitor'
+  | 'consumo'
   | 'tareas'
   | 'preguntas'
   | 'bandeja'

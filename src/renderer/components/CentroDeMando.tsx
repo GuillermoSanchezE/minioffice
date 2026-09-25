@@ -7,6 +7,7 @@ import { ChipEstado, Icono, Retrato } from './basicos'
 import { VistaTerminal } from './VistaTerminal'
 import { Cola } from './Cola'
 import { PestanaMonitor } from './pestanas/Monitor'
+import { PestanaConsumo } from './pestanas/Consumo'
 import { PestanaTareas } from './pestanas/Tareas'
 import { PestanaPreguntas } from './pestanas/Preguntas'
 import { PestanaBandeja } from './pestanas/Bandeja'
@@ -23,6 +24,7 @@ import { PestanaGrapadora } from './pestanas/Grapadora'
 const PESTANAS: Array<{ id: Pestana; nombre: string; icono: string }> = [
   { id: 'terminal', nombre: 'terminal', icono: 'terminal' },
   { id: 'monitor', nombre: 'monitor', icono: 'monitor' },
+  { id: 'consumo', nombre: 'consumo', icono: 'consumo' },
   { id: 'tareas', nombre: 'tareas', icono: 'tareas' },
   { id: 'preguntas', nombre: 'pregúntame', icono: 'campana' },
   { id: 'bandeja', nombre: 'bandeja', icono: 'bandeja' },
@@ -102,6 +104,7 @@ export function CentroDeMando({ michael, sinPestanas = false }: { michael: Agent
       <div className="panel-contenido">
         {pestana === 'terminal' && <VistaTerminal agente={michael} />}
         {pestana === 'monitor' && <PestanaMonitor />}
+        {pestana === 'consumo' && <PestanaConsumo />}
         {pestana === 'tareas' && <PestanaTareas />}
         {pestana === 'preguntas' && <PestanaPreguntas />}
         {pestana === 'bandeja' && <PestanaBandeja />}

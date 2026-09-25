@@ -29,6 +29,7 @@ descanso, Jim frente a Dwight, Phyllis frente a Stanley, contabilidad, cocina y 
 | ------------- | ------------------------------------------------------------------------------------------ |
 | terminal      | La terminal real de Michael y una cola de mensajes (`@Dwight …` le habla directo a Dwight) |
 | monitor       | Despachar tareas vía Michael, tokens, contexto, costo estimado, límite por agente, motor    |
+| consumo       | Cuánto te queda de tu plan (5 horas y semana) y tokens por hora, día, agente y modelo      |
 | tareas        | Tablero (arrastrar entre columnas) o lista; los agentes también escriben tarjetas          |
 | pregúntame    | Lo que los agentes te preguntan (`"para": "usuario"`), con opciones rápidas                |
 | bandeja       | Todos los mensajes entre agentes, contigo y de fuera                                       |
@@ -64,25 +65,53 @@ mensaje.
 **Permisos**: *Manual*, *Auto* (Claude Code aprueba lo seguro, por defecto), *Aceptar ediciones*
 o *Sin permisos*. Se cambia desde el botón **auto** del centro de mando.
 
-## Requisitos
+## Instalar en tu Mac
+
+**Con el instalador (.dmg).** En GitHub, entra a **Actions → Instalador para Mac → Run workflow**.
+Cuando termine (unos minutos), descarga el artefacto `minioffice-mac`: trae
+`minioffice-<versión>-arm64.dmg` (Mac con Apple Silicon, M1 en adelante) y `…-x64.dmg` (Intel).
+Si subes una etiqueta `v0.4.0`, el mismo workflow lo publica en **Releases**.
+
+**O constrúyelo en tu Mac**: `npm install && npm run dist:mac` deja el .dmg en `dist/`.
+
+La primera vez que la abras:
+
+1. Arrastra minioffice a Aplicaciones y ábrela. Como no está firmada con un certificado de
+   desarrollador de Apple, macOS la bloquea: ve a **Ajustes del Sistema → Privacidad y seguridad**
+   y pulsa **Abrir igualmente** (o en la Terminal: `xattr -dr com.apple.quarantine /Applications/minioffice.app`).
+2. Elige la carpeta del proyecto donde trabajará la oficina. Se recuerda; para cambiarla:
+   **Ajustes → Abrir otro proyecto…**.
+3. Necesitas [Claude Code](https://docs.claude.com/en/docs/claude-code) instalado y con tu sesión
+   iniciada (que `claude` funcione en la Terminal) y git. minioffice toma el PATH de tu Terminal, así
+   que los encuentra aunque la abras desde el Dock.
+
+## Requisitos para desarrollo
 
 - Node.js 22 o superior y git
-- [Claude Code](https://docs.claude.com/en/docs/claude-code) instalado y con sesión iniciada (el
-  comando `claude` tiene que funcionar en tu terminal)
-- Si `node-pty` no trae binario para tu sistema, herramientas para compilarlo:
-  macOS `xcode-select --install`; Windows, Visual Studio Build Tools con C++; Linux,
-  `build-essential` y `python3`
+- Claude Code instalado y con sesión iniciada
+- `node-pty` trae binarios para Mac y Windows; en Linux necesitas `build-essential` y `python3`
 
-## Uso
+## Uso en desarrollo
 
 ```bash
 npm install
 npm run dev
 ```
 
-La primera vez, Electron descarga su binario. Michael arranca solo (se puede apagar en Ajustes).
-Escríbele en la cola de su terminal o despacha desde **monitor**. `npm run build` genera la app en
-`out/` y `npm start` la abre sin el servidor de desarrollo.
+En desarrollo la oficina trabaja en la carpeta desde donde lo lanzas. Michael arranca solo (se
+puede apagar en Ajustes). `npm run build` compila en `out/` y `npm start` la abre sin el servidor
+de desarrollo.
+
+## Consumo y tu plan
+
+La pestaña **consumo** muestra lo mismo que claude.ai en **Ajustes → Uso**: el porcentaje usado
+de tu sesión de 5 horas y de tu semana, con la hora de reinicio y a qué ritmo vas. Claude Code se
+lo pasa a minioffice por su barra de estado; aparece en cuanto un agente trabaja con tu suscripción
+(Pro o Max). Ese límite es compartido: lo gastan Claude, Claude Code y esta oficina.
+
+Debajo, los tokens que procesó cada agente por hora o por día (leídos de sus transcripciones), el
+reparto por agente y por modelo, y lo que costaría a precio de API. Con tu plan no pagas ese costo:
+sirve para comparar. En la barra de título hay un indicador compacto del plan.
 
 ## El reparto
 
@@ -170,6 +199,7 @@ minioffice hace commits.
 ├── tareas/<id>.json        el tablero
 ├── preguntas/<id>.json     lo que te preguntan
 ├── capturas/               capturas de la grapadora (no entran en git)
+├── uso/                    consumo por hora y último dato del plan (no entra en git)
 └── agentes/<id>/
     ├── memoria.md          lo que el agente quiere recordar entre sesiones
     └── buzon/{entrada,salida,enviados,rechazados}/
@@ -202,7 +232,10 @@ src/
 │   ├── agents/           instrucciones de cada sesión
 │   ├── disparadores.ts   horarios y webhook
 │   ├── temporales.ts     ayudantes `claude -p`
-│   ├── capacidades.ts    skills, MCP y motores
+│   ├── capacidades.ts    MCP y motores
+│   ├── skills.ts         biblioteca de skills y plugin de cada agente
+│   ├── consumo.ts        tokens por hora y uso del plan
+│   ├── entorno.ts        carpeta del proyecto y PATH de la app instalada
 │   └── grapadora.ts      ventana flotante y capturas
 ├── preload/              API segura para la ventana (window.minioffice)
 ├── renderer/             interfaz React
@@ -218,4 +251,5 @@ src/
 - **Voz dentro de la app**: todavía no hay botón de micrófono. El dictado del sistema sí funciona en
   cualquier caja de texto (macOS: pulsa dos veces `Fn` o la tecla 🌐; Windows: `Win + H`).
 - **Slack**: no hay conexión con Slack; para avisos de fuera usa el webhook.
-- **Instalador**: se ejecuta con `npm run dev` / `npm start`, sin empaquetar.
+- **Firma de Apple**: el .dmg va firmado ad hoc, no con un certificado de desarrollador; por eso
+  macOS pide confirmación la primera vez.

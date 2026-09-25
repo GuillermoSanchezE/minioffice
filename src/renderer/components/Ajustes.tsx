@@ -1,6 +1,6 @@
 import type { Ajustes as TipoAjustes } from '../../shared/types'
 import { MODOS_PERMISOS } from '../../shared/motores'
-import { intentar, useOficina } from '../tienda'
+import { accion, intentar, useOficina } from '../tienda'
 import { cambiarUi, useUi } from '../ui'
 import { Modal, Vacio } from './basicos'
 
@@ -76,7 +76,14 @@ export function Ajustes(): JSX.Element {
           </div>
 
           <span className="etiqueta-campo">Proyecto</span>
-          <p className="mono pequeno">{raiz}</p>
+          <div className="fila">
+            <p className="mono pequeno crece recorte" title={raiz}>
+              {raiz}
+            </p>
+            <button className="boton" onClick={() => void accion({ tipo: 'proyecto:cambiar' })}>
+              Abrir otro proyecto…
+            </button>
+          </div>
           <p className="suave pequeno">
             El equipo vive en <code>minioffice.config.json</code> y la memoria compartida en <code>.hive/</code> (un repositorio git local). minioffice{' '}
             {version}.
