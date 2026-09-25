@@ -21,6 +21,38 @@ if (!wav || !segundos) {
 const esperado = (process.env.ESPERADO || 'michael,formulario,contacto,pagina,errores').split(',')
 const normalizar = (t) => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
 
+/** Reescribe el WAV con la cabecera PCM mínima (afconvert añade bloques que Chromium no siempre lee). */
+function wavSimple(ruta) {
+  const d = fs.readFileSync(ruta)
+  let fmt = null
+  let datos = null
+  for (let i = 12; i + 8 <= d.length; ) {
+    const id = d.toString('ascii', i, i + 4)
+    const n = d.readUInt32LE(i + 4)
+    if (id === 'fmt ') fmt = { canales: d.readUInt16LE(i + 10), muestreo: d.readUInt32LE(i + 12), bits: d.readUInt16LE(i + 22) }
+    if (id === 'data') datos = d.subarray(i + 8, i + 8 + n)
+    i += 8 + n + (n & 1)
+  }
+  if (!fmt || !datos || fmt.bits !== 16) throw new Error(`WAV no soportado: ${JSON.stringify(fmt)}`)
+  const h = Buffer.alloc(44)
+  h.write('RIFF', 0)
+  h.writeUInt32LE(36 + datos.length, 4)
+  h.write('WAVEfmt ', 8)
+  h.writeUInt32LE(16, 16)
+  h.writeUInt16LE(1, 20)
+  h.writeUInt16LE(fmt.canales, 22)
+  h.writeUInt32LE(fmt.muestreo, 24)
+  h.writeUInt32LE(fmt.muestreo * fmt.canales * 2, 28)
+  h.writeUInt16LE(fmt.canales * 2, 32)
+  h.writeUInt16LE(16, 34)
+  h.write('data', 36)
+  h.writeUInt32LE(datos.length, 40)
+  const destino = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'mo-wav-')), 'frase.wav')
+  fs.writeFileSync(destino, Buffer.concat([h, datos]))
+  console.log('WAV:', JSON.stringify({ ...fmt, segundos: +(datos.length / (fmt.muestreo * fmt.canales * 2)).toFixed(2) }))
+  return destino
+}
+
 ;(async () => {
   fs.mkdirSync(capturas, { recursive: true })
   const proyecto = fs.mkdtempSync(path.join(os.tmpdir(), 'mo-dictado-'))
@@ -28,9 +60,10 @@ const normalizar = (t) => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase
   const banderas = [
     '--use-fake-ui-for-media-stream',
     '--use-fake-device-for-media-stream',
-    `--use-file-for-fake-audio-capture=${path.resolve(wav)}`,
-    // En macOS el servicio de audio va aislado y no podría leer el WAV.
-    '--disable-features=AudioServiceSandbox'
+    `--use-file-for-fake-audio-capture=${wavSimple(path.resolve(wav))}`,
+    // En macOS el servicio de audio va aislado y no podría leer el WAV (solo en la prueba).
+    '--disable-features=AudioServiceSandbox',
+    '--no-sandbox'
   ]
   const app = await electron.launch(
     ejecutable
