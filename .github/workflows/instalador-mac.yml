@@ -35,9 +35,10 @@ jobs:
         run: |
           sips -g pixelWidth dist/mac-arm64/minioffice.app/Contents/Resources/icon.icns
           hdiutil attach dist/minioffice-*-arm64.dmg -mountpoint /tmp/instalador -nobrowse -quiet
-          ls -la /tmp/instalador /tmp/instalador/.background
+          ls -la /tmp/instalador
           test -f /tmp/instalador/.VolumeIcon.icns
-          test -n "$(ls /tmp/instalador/.background)"
+          test -f /tmp/instalador/.background.tiff
+          tiffutil -info /tmp/instalador/.background.tiff | grep -i "width"
           hdiutil detach /tmp/instalador -quiet
 
       - uses: actions/upload-artifact@v4
