@@ -8,8 +8,9 @@ function normalizar(texto: string): string {
 }
 
 /**
- * Michael decide a quien va una tarea: si el texto empieza con "@nombre"
- * (o "@id") va a ese agente; si no, al elegido en el selector.
+ * Michael decide a quién va una tarea: si el texto empieza con "@nombre"
+ * (id, nombre de pila o nombre completo sin espacios) va a ese agente; si no,
+ * al elegido en el selector.
  */
 export function resolverDestino(
   texto: string,
@@ -19,7 +20,12 @@ export function resolverDestino(
   const mencion = texto.match(/^@([^\s,:]+)[\s,:]*/)
   if (mencion) {
     const buscado = normalizar(mencion[1])
-    const agente = trabajadores.find((a) => normalizar(a.id) === buscado || normalizar(a.nombre) === buscado)
+    const agente = trabajadores.find((a) => {
+      const nombre = normalizar(a.nombre)
+      return (
+        normalizar(a.id) === buscado || nombre.split(/\s+/)[0] === buscado || nombre.replace(/\s+/g, '') === buscado
+      )
+    })
     if (agente) return { para: agente.id, cuerpo: texto.slice(mencion[0].length).trim() }
   }
   return { para: destinoPorDefecto, cuerpo: texto }

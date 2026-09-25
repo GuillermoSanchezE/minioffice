@@ -33,5 +33,10 @@ export function PisoOficina({ agentes, seleccionado, onSeleccionar }: Props): JS
     escenaRef.current?.seleccionar(seleccionado)
   }, [seleccionado])
 
-  return <div className="piso-oficina" ref={hostRef} />
+  return (
+    <div className="piso-oficina">
+      <div className="piso-lienzo" ref={hostRef} />
+      <p className="piso-ayuda">Rueda: acercar · Arrastrar: moverse · Doble clic: ver todo</p>
+    </div>
+  )
 }

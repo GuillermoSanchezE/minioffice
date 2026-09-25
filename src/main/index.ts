@@ -1,4 +1,4 @@
-import { app, BrowserWindow } from 'electron'
+import { app, BrowserWindow, screen } from 'electron'
 import { join } from 'node:path'
 import { cargarConfig } from './config'
 import { HiveStore } from './hive/hiveStore'
@@ -13,9 +13,10 @@ const router = new MailboxRouter(hive, agentes)
 const ptyManager = new PtyManager()
 
 async function crearVentana(): Promise<void> {
+  const pantalla = screen.getPrimaryDisplay().workAreaSize
   const ventana = new BrowserWindow({
-    width: 1280,
-    height: 800,
+    width: Math.min(1600, pantalla.width),
+    height: Math.min(1000, pantalla.height),
     minWidth: 960,
     minHeight: 600,
     title: 'minioffice',

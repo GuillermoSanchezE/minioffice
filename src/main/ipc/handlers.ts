@@ -5,7 +5,7 @@ import type { HiveStore } from '../hive/hiveStore'
 import type { MailboxRouter } from '../hive/mailboxRouter'
 import type { PtyManager } from '../pty/ptyManager'
 import { esClaude, instruccionesPara } from '../agents/instrucciones'
-import { ID_MICHAEL } from '../config'
+import { ID_MICHAEL } from '../../shared/reparto'
 
 interface Dependencias {
   agentes: AgentDefinition[]

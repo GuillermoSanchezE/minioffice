@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEven
 import type { AgenteConEstado } from '../../shared/api'
 import type { HiveMessage } from '../../shared/types'
 import { resolverDestino } from '../michael'
-import { aCss, colorDeAgente } from '../colores'
+import { AvatarAgente } from './AvatarAgente'
 
 interface Props {
   agentes: AgenteConEstado[]
@@ -58,9 +58,9 @@ export function ChatMichael({ agentes, mensajes }: Props): JSX.Element {
     <section className="panel panel-chat">
       <header className="panel-cabecera">
         <div>
-          <h2>Habla con Michael</h2>
+          <h2>Habla con Michael Scott</h2>
           <span className="texto-suave">
-            Michael reparte tus tareas. Escribe <code>@nombre</code> para elegir a quién va.
+            Michael reparte tus tareas. Escribe <code>@Dwight</code>, <code>@Pam</code>… para elegir a quién va.
           </span>
         </div>
       </header>
@@ -68,17 +68,12 @@ export function ChatMichael({ agentes, mensajes }: Props): JSX.Element {
       <div className="chat-feed" ref={feedRef}>
         {mensajes.length === 0 ? (
           <p className="chat-vacio">
-            Todavía no hay mensajes. Pídele algo a Michael, por ejemplo: “@Ana revisa el README y propón mejoras”.
+            Todavía no hay mensajes. Pídele algo a Michael, por ejemplo: “@Dwight revisa el README y propón mejoras”.
           </p>
         ) : (
           mensajes.map((msg) => (
             <article key={msg.id} className={`mensaje ${msg.de === 'michael' ? 'mensaje-michael' : ''}`}>
-              <span
-                className="mensaje-avatar"
-                style={{ background: aCss(colorDeAgente(msg.de, porId.get(msg.de)?.esCoordinador)) }}
-              >
-                {nombreDe(msg.de).charAt(0).toUpperCase()}
-              </span>
+              <AvatarAgente id={msg.de} nombre={nombreDe(msg.de)} className="mensaje-avatar" />
               <div className="mensaje-contenido">
                 <div className="mensaje-meta">
                   <strong>{nombreDe(msg.de)}</strong>

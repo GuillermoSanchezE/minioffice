@@ -1,18 +1,26 @@
 # minioffice
 
-Tu oficina personal de agentes IA. minioffice abre varias sesiones de **Claude Code** como si fueran
-empleados: cada uno tiene su escritorio en una oficina 2D, su terminal, su memoria y su buzón. Tú le
-hablas a **Michael**, el coordinador, y él reparte las tareas.
+Tu oficina personal de agentes IA con el equipo de **The Office**. minioffice abre sesiones de
+**Claude Code** como si fueran los empleados de Dunder Mifflin Scranton: cada uno tiene su
+escritorio, su terminal, su memoria y su buzón. Tú le hablas a **Michael Scott** y él reparte las
+tareas.
 
-Proyecto personal y de uso privado, inspirado en la idea de
-[Munder Difflin](https://github.com/chaitanyagiri/munder-difflin). Todo el código y el arte están
-hechos desde cero para este proyecto (no se copió código ni el tileset de Munder Difflin).
+Proyecto de fan, personal y de uso privado, inspirado en la idea de
+[Munder Difflin](https://github.com/chaitanyagiri/munder-difflin). Sin relación con NBC ni con la
+serie. Todo el código y el arte están hechos desde cero: los personajes se dibujan con formas simples
+(peinado, ropa, lentes…), sin imágenes de la serie.
 
 ## Qué hace
 
-- **Oficina 2D** (Pixi.js): cada agente tiene escritorio. Si su sesión está detenida espera en la
-  sala de descanso; al iniciar camina a su escritorio. Mientras escribe se ve la burbuja de "…" y el
-  monitor encendido. Los mensajes vuelan como sobres entre agentes.
+- **La oficina de la serie** (Pixi.js): recepción de Pam junto a la entrada, oficina de Michael,
+  sala de conferencias, sala de descanso, Jim frente a Dwight, Phyllis frente a Stanley, el rincón de
+  contabilidad, la cocina y el anexo con Kelly, Ryan y Toby.
+- **Cada personaje en su escritorio**: sin sesión está dormido (zZ); con sesión abre los ojos y
+  enciende el monitor; cuando su terminal tiene actividad teclea y aparece la burbuja "…". Los
+  mensajes vuelan como sobres entre escritorios. Rueda del ratón para acercar, arrastrar para
+  moverse, doble clic para ver toda la oficina, clic en un personaje para abrir su terminal.
+- **Personalidad**: cada agente sabe quién es (Dwight es intenso, Stanley va al grano, Angela es
+  estricta…) y lo usa en el tono de sus mensajes, sin que afecte la calidad del trabajo.
 - **Terminales reales** (node-pty + xterm.js): cada agente es una sesión interactiva de `claude`.
   Puedes escribir directamente en su terminal.
 - **Michael, el coordinador**: le escribes una tarea en el chat y la deja en el buzón del agente.
@@ -46,41 +54,62 @@ La primera vez que arranca, Electron descarga su binario (puede tardar un poco).
 
 Luego:
 
-1. Elige un agente en **Equipo** y pulsa **Iniciar sesión**, o
-2. escríbele a Michael en el chat: `@Ana revisa el README y propón mejoras`. Sin `@nombre`, la tarea
-   va al agente elegido en el selector.
+1. Haz clic en un personaje (en la oficina o en **Equipo**) y pulsa **Iniciar sesión**, o
+2. escríbele a Michael en el chat: `@Dwight revisa el README y propón mejoras`. Sirve el nombre de
+   pila (`@Pam`, `@Oscar`…). Sin `@nombre`, la tarea va al elegido en el selector.
 
 `npm run build` genera la app en `out/` y `npm start` la abre sin el servidor de desarrollo.
 
+## El reparto
+
+| id         | Personaje       | Puesto                          | Dónde se sienta                    |
+| ---------- | --------------- | ------------------------------- | ---------------------------------- |
+| `michael`  | Michael Scott   | Gerente Regional (coordinador)  | Su oficina                         |
+| `dwight`   | Dwight Schrute  | Asistente del Gerente Regional  | Frente a Jim                       |
+| `jim`      | Jim Halpert     | Representante de ventas         | Frente a Dwight                    |
+| `pam`      | Pam Beesly      | Recepcionista                   | Recepción                          |
+| `andy`     | Andy Bernard    | Representante de ventas         | Junto a la oficina de Michael      |
+| `ryan`     | Ryan Howard     | Temporal                        | Anexo                              |
+| `kelly`    | Kelly Kapoor    | Atención al cliente             | Anexo                              |
+| `angela`   | Angela Martin   | Jefa de contabilidad            | Contabilidad                       |
+| `kevin`    | Kevin Malone    | Contador                        | Contabilidad, frente a Oscar       |
+| `oscar`    | Oscar Martinez  | Contador                        | Contabilidad, frente a Kevin       |
+| `stanley`  | Stanley Hudson  | Representante de ventas         | Frente a Phyllis                   |
+| `phyllis`  | Phyllis Vance   | Representante de ventas         | Frente a Stanley                   |
+| `creed`    | Creed Bratton   | Control de calidad              | Al fondo, junto a la ventana       |
+| `meredith` | Meredith Palmer | Relaciones con proveedores      | Al fondo, junto a Creed            |
+| `toby`     | Toby Flenderson | Recursos Humanos                | Anexo                              |
+
+Michael no tiene terminal: es quien reparte. Los otros 14 son sesiones de Claude Code, y solo se
+abren cuando les asignas una tarea o pulsas **Iniciar sesión**.
+
 ## Configurar tu equipo
 
-Edita `minioffice.config.json` en la carpeta desde donde lanzas la app:
+Edita `minioffice.config.json` en la carpeta desde donde lanzas la app. Para un personaje del
+reparto basta el `id`; lo más útil es apuntar su `cwd` al proyecto en el que quieres que trabaje:
 
 ```json
 {
   "agentes": [
-    {
-      "id": "ana",
-      "nombre": "Ana",
-      "rol": "Desarrolladora",
-      "comando": "claude",
-      "args": [],
-      "cwd": "../mi-proyecto",
-      "escritorio": { "x": 2, "y": 2 }
-    }
+    { "id": "dwight", "cwd": "../mi-proyecto" },
+    { "id": "oscar", "cwd": "../contabilidad", "args": ["--model", "opus"] },
+    { "id": "darryl", "nombre": "Darryl Philbin", "rol": "Jefe de almacén", "personalidad": "Tranquilo y con los pies en la tierra." }
   ]
 }
 ```
 
-| Campo        | Qué es                                                                                     |
-| ------------ | ------------------------------------------------------------------------------------------ |
-| `id`         | Identificador único en minúsculas (letras, números, `-`, `_`). `michael` está reservado.   |
-| `nombre`     | Nombre visible en la oficina y en el chat.                                                 |
-| `rol`        | Se le dice al agente en su system prompt.                                                  |
-| `comando`    | CLI a ejecutar. Por defecto `claude`.                                                      |
-| `args`       | Argumentos extra, por ejemplo `["--model", "sonnet"]`.                                     |
-| `cwd`        | Carpeta de trabajo del agente, relativa a donde lanzas minioffice. Apúntala a tu proyecto. |
-| `escritorio` | Posición en la oficina: `x` de 0 a 11, `y` de 0 a 7. La oficina de Michael ocupa x 9–11, y 0–2 y la sala de descanso x 0–4, y 6–7. |
+| Campo          | Qué es                                                                                         |
+| -------------- | ---------------------------------------------------------------------------------------------- |
+| `id`           | Identificador en minúsculas (letras, números, `-`, `_`). `michael` está reservado.             |
+| `nombre`       | Nombre visible. Para el reparto ya viene puesto.                                               |
+| `rol`          | Puesto; se le dice al agente en su system prompt.                                              |
+| `personalidad` | Cómo es el personaje; lo usa en el tono de sus mensajes.                                       |
+| `comando`      | CLI a ejecutar. Por defecto `claude`.                                                          |
+| `args`         | Argumentos extra, por ejemplo `["--model", "sonnet"]`.                                         |
+| `cwd`          | Carpeta de trabajo del agente, relativa a donde lanzas minioffice.                             |
+
+Si quitas a alguien de la lista, no aparece en la oficina. Los agentes que no son del reparto
+(como Darryl en el ejemplo) ocupan escritorios libres y reciben un aspecto generado a partir de su id.
 
 ## El hive (`.hive/`)
 
@@ -111,8 +140,9 @@ src/
 │   ├── agents/           instrucciones que recibe cada sesión de Claude Code
 │   └── ipc/              puente entre la ventana y el proceso principal
 ├── preload/              API segura expuesta a la ventana (window.minioffice)
-├── renderer/             interfaz React: oficina 2D, terminal, chat con Michael
-└── shared/               tipos compartidos
+├── renderer/             interfaz React: terminal, chat con Michael
+│   └── oficina/          plano de la oficina, dibujo de los personajes y la escena animada
+└── shared/               tipos compartidos y el reparto (roles, personalidad y aspecto)
 ```
 
 ## Qué falta (siguientes etapas)

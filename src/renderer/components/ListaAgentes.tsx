@@ -1,5 +1,6 @@
 import type { AgenteConEstado } from '../../shared/api'
-import { aCss, colorDeAgente, COLOR_ESTADO, ETIQUETA_ESTADO } from '../colores'
+import { aCss, COLOR_ESTADO, ETIQUETA_ESTADO } from '../colores'
+import { AvatarAgente } from './AvatarAgente'
 
 interface Props {
   agentes: AgenteConEstado[]
@@ -16,12 +17,7 @@ export function ListaAgentes({ agentes, seleccionado, onSeleccionar }: Props): J
             className={`agente ${seleccionado === agente.id ? 'agente-activo' : ''}`}
             onClick={() => onSeleccionar(agente.id)}
           >
-            <span
-              className="agente-avatar"
-              style={{ background: aCss(colorDeAgente(agente.id, agente.esCoordinador)) }}
-            >
-              {agente.nombre.charAt(0).toUpperCase()}
-            </span>
+            <AvatarAgente id={agente.id} nombre={agente.nombre} className="agente-avatar" />
             <span className="agente-datos">
               <strong>{agente.nombre}</strong>
               <span className="texto-suave">{agente.rol}</span>

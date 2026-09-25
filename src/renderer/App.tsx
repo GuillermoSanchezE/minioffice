@@ -51,7 +51,7 @@ export function App(): JSX.Element {
           <span className="marca-logo">mo</span>
           <div>
             <h1>minioffice</h1>
-            <span className="texto-suave">Tu oficina de agentes</span>
+            <span className="texto-suave">Dunder Mifflin · Sucursal Scranton</span>
           </div>
         </div>
         <div className="resumen texto-suave">
@@ -79,11 +79,11 @@ export function App(): JSX.Element {
             <PanelTerminal agente={agenteSeleccionado} />
           ) : (
             <section className="panel panel-info">
-              <h2>Michael, el coordinador</h2>
+              <h2>Michael Scott, Gerente Regional</h2>
               <p>
-                Michael no tiene terminal propia: recibe tus tareas en el chat y las deja en el buzón del agente
-                indicado. Si el agente está en la sala de descanso, Michael le abre una sesión de Claude Code con la
-                tarea ya escrita.
+                Michael no tiene terminal propia: recibe tus tareas en el chat y las deja en el buzón del empleado
+                indicado. Si el empleado está dormido en su escritorio, Michael le abre una sesión de Claude Code con
+                la tarea ya escrita.
               </p>
               <p>
                 Los agentes le contestan escribiendo en su buzón de salida dentro de <code>.hive/</code>. Todo queda

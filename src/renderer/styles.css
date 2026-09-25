@@ -135,16 +135,34 @@ code {
 
 .panel-oficina {
   flex: 3;
-  min-height: 220px;
+  min-height: 260px;
 }
 
 .piso-oficina {
+  position: relative;
   width: 100%;
   height: 100%;
 }
 
-.piso-oficina canvas {
+.piso-lienzo {
+  position: absolute;
+  inset: 0;
+}
+
+.piso-lienzo canvas {
   display: block;
+}
+
+.piso-ayuda {
+  position: absolute;
+  right: 10px;
+  bottom: 8px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: rgba(15, 18, 24, 0.75);
+  color: var(--texto-suave);
+  font-size: 11px;
+  pointer-events: none;
 }
 
 /* ------------------------------------------------------------------- equipo */
@@ -159,8 +177,8 @@ code {
   padding: 6px;
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  max-height: 220px;
+  gap: 1px;
+  max-height: 34vh;
   overflow-y: auto;
 }
 
@@ -169,7 +187,7 @@ code {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 7px 8px;
+  padding: 5px 8px;
   border: 1px solid transparent;
   border-radius: 8px;
   background: none;
@@ -196,9 +214,10 @@ code {
   width: 28px;
   height: 28px;
   border-radius: 50%;
-  color: #0b0d12;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
   font-weight: 700;
-  font-size: 13px;
+  font-size: 11px;
+  letter-spacing: 0.3px;
 }
 
 .agente-datos {

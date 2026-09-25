@@ -1,13 +1,25 @@
 import type { AgentStatus } from '../shared/types'
+import { aparienciaDe, colorPrincipal } from './oficina/personajes'
 
-const PALETA = [0x4f8cff, 0xff8a4f, 0x3fcf8e, 0xc77dff, 0xffc94f, 0x4fd6ff, 0xff5f8f]
-const COLOR_MICHAEL = 0x8e9ab3
+/** Color que identifica al personaje: el de su camisa, saco o cardigan. */
+export function colorDeAgente(id: string): number {
+  return colorPrincipal(aparienciaDe(id))
+}
 
-export function colorDeAgente(id: string, esCoordinador = false): number {
-  if (esCoordinador) return COLOR_MICHAEL
-  let hash = 0
-  for (const letra of id) hash = (hash * 31 + letra.charCodeAt(0)) >>> 0
-  return PALETA[hash % PALETA.length]
+/** Texto oscuro sobre colores claros y claro sobre oscuros. */
+export function colorTextoSobre(fondo: number): string {
+  const r = (fondo >> 16) & 0xff
+  const g = (fondo >> 8) & 0xff
+  const b = fondo & 0xff
+  return 0.299 * r + 0.587 * g + 0.114 * b > 150 ? '#111827' : '#f8fafc'
+}
+
+export function iniciales(nombre: string): string {
+  const partes = nombre.trim().split(/\s+/)
+  return partes
+    .slice(0, 2)
+    .map((p) => p.charAt(0).toUpperCase())
+    .join('')
 }
 
 export function aCss(color: number): string {
@@ -23,8 +35,8 @@ export const COLOR_ESTADO: Record<AgentStatus, number> = {
 }
 
 export const ETIQUETA_ESTADO: Record<AgentStatus, string> = {
-  detenido: 'Detenido',
-  iniciando: 'Iniciando…',
+  detenido: 'Dormido',
+  iniciando: 'Llegando…',
   inactivo: 'En su escritorio',
   trabajando: 'Trabajando',
   error: 'Error'
