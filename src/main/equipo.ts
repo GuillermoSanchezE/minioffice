@@ -3,6 +3,7 @@ import { isAbsolute, join, relative, resolve } from 'node:path'
 import type { AgentDefinition, ProveedorId } from '../shared/types'
 import { ID_MICHAEL, REPARTO, personajeDe } from '../shared/reparto'
 import { PROVEEDORES } from '../shared/motores'
+import { NOMBRE_SKILL_VALIDO, puestoDe } from '../shared/skills'
 
 export const COLORES = ['#d9534f', '#4f9d69', '#3c8a99', '#d9a441', '#8a6fd1', '#d98a5c']
 
@@ -49,7 +50,7 @@ export function normalizar(crudo: Cruda, raiz: string, coordinador = false): Age
   return {
     id,
     nombre: crudo.nombre?.trim() || base?.nombre || id,
-    rol: crudo.rol?.trim() || base?.rol || 'Agente',
+    rol: crudo.rol?.trim() || puestoDe(personaje, base?.rol) || 'Agente',
     personalidad: crudo.personalidad?.trim() || base?.personalidad,
     personaje,
     color: typeof crudo.color === 'string' && /^#[0-9a-f]{6}$/i.test(crudo.color) ? crudo.color : colorPorDefecto(id),
@@ -64,7 +65,10 @@ export function normalizar(crudo: Cruda, raiz: string, coordinador = false): Age
     objetivo: crudo.objetivo?.trim() || undefined,
     nota: crudo.nota?.trim() || undefined,
     limiteTokens: Number.isFinite(limite) && limite > 0 ? limite : undefined,
-    esCoordinador: coordinador || undefined
+    esCoordinador: coordinador || undefined,
+    skills: Array.isArray(crudo.skills)
+      ? [...new Set(crudo.skills.map(String).filter((x) => NOMBRE_SKILL_VALIDO.test(x)))]
+      : undefined
   }
 }
 
@@ -97,7 +101,7 @@ function compactar(a: AgentDefinition, raiz: string): Cruda {
   const cwd = relative(raiz, a.cwd)
   const salida: Cruda = a.esCoordinador ? {} : { id: a.id }
   if (a.nombre !== (base?.nombre ?? a.id)) salida.nombre = a.nombre
-  if (a.rol !== (base?.rol ?? 'Agente')) salida.rol = a.rol
+  if (a.rol !== (puestoDe(a.personaje, base?.rol) ?? 'Agente')) salida.rol = a.rol
   if (a.personalidad && a.personalidad !== base?.personalidad) salida.personalidad = a.personalidad
   if (a.personaje !== a.id) salida.personaje = a.personaje
   if (a.color !== colorPorDefecto(a.id)) salida.color = a.color
@@ -112,6 +116,7 @@ function compactar(a: AgentDefinition, raiz: string): Cruda {
   if (a.objetivo) salida.objetivo = a.objetivo
   if (a.nota) salida.nota = a.nota
   if (a.limiteTokens) salida.limiteTokens = a.limiteTokens
+  if (a.skills?.length) salida.skills = a.skills
   return salida
 }
 

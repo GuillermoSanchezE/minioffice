@@ -1,15 +1,26 @@
 import { join } from 'node:path'
 import type { AgentDefinition } from '../../shared/types'
+import { personajeDe } from '../../shared/reparto'
+import { skillDelCatalogo } from '../../shared/skills'
+
+function quienEs(agente: AgentDefinition): string {
+  const serie = personajeDe(agente.personaje)
+  const enLaSerie = serie && serie.nombre === agente.nombre && serie.rol !== agente.rol ? ` (en la serie, ${serie.rol.toLowerCase()})` : ''
+  return `${agente.nombre}${enLaSerie}`
+}
 
 /** Texto que se anade al system prompt de cada sesion (o se teclea al empezar si la CLI no lo admite). */
-export function instruccionesPara(agente: AgentDefinition, equipo: AgentDefinition[], rutaHive: string): string {
+export function instruccionesPara(agente: AgentDefinition, equipo: AgentDefinition[], rutaHive: string, enfoque = ''): string {
   const carpeta = join(rutaHive, 'agentes', agente.id)
   const coordinador = equipo.find((a) => a.esCoordinador)
   const nombreJefe = coordinador?.nombre ?? 'Michael'
   const idJefe = coordinador?.id ?? 'michael'
   const companeros = equipo
     .filter((a) => a.id !== agente.id)
-    .map((a) => `- ${a.id}: ${a.nombre} (${a.rol}) · trabaja en ${a.cwd}${a.descripcion ? ` · ${a.descripcion}` : ''}`)
+    .map(
+      (a) =>
+        `- ${a.id}: ${a.nombre} (${a.rol}) · trabaja en ${a.cwd}${a.skills?.length ? ` · skills: ${a.skills.join(', ')}` : ''}${a.descripcion ? ` · ${a.descripcion}` : ''}`
+    )
     .join('\n')
 
   const personalidad = agente.personalidad
@@ -21,6 +32,12 @@ export function instruccionesPara(agente: AgentDefinition, equipo: AgentDefiniti
   ]
     .filter(Boolean)
     .join('\n')
+  const skills = agente.skills?.length
+    ? `\nTus skills (cárgalas cuando la tarea encaje; vienen en el plugin "oficina"):\n${agente.skills
+        .map((n) => `- ${n}${skillDelCatalogo(n) ? `: ${skillDelCatalogo(n)!.resumen}` : ''}`)
+        .join('\n')}\n`
+    : ''
+  const dedicacion = enfoque.trim() ? `\n${enfoque.trim()}\n` : ''
 
   const comun = `Mensajes que recibes: llegan tecleados en tu sesión con el formato "Mensaje de <nombre>: <texto>". Los de "Usuario" vienen de la persona dueña de la oficina.
 
@@ -38,11 +55,11 @@ Tu memoria a largo plazo está en ${join(carpeta, 'memoria.md')}. Léela al empe
 La pizarra compartida del equipo está en ${join(rutaHive, 'pizarra.md')}.`
 
   if (agente.esCoordinador) {
-    return `Eres ${agente.nombre}, ${agente.rol} y coordinador de minioffice: una recreación de la oficina de Dunder Mifflin en Scranton donde cada empleado es un agente de IA con su propia sesión.
-Responde siempre en español.
-${personalidad}
+    return `Eres ${quienEs(agente)}, ${agente.rol} y coordinador de minioffice: una recreación de la oficina de Dunder Mifflin en Scranton donde cada empleado es un agente de IA con su propia sesión.
+Responde siempre en español.${dedicacion}
+${personalidad}${skills}
 Tu trabajo es dirigir la oficina, no hacer el trabajo tú mismo:
-- Cuando el usuario te pida algo, divídelo en tareas, escríbelas en el tablero y asígnalas al empleado más adecuado enviándole un mensaje con todo el contexto que necesita.
+- Cuando el usuario te pida algo, divídelo en tareas, escríbelas en el tablero y asígnalas al empleado más adecuado (mira su puesto y sus skills) enviándole un mensaje con todo el contexto que necesita.
 - Sigue el avance, reasigna lo bloqueado y, cuando todo esté hecho, dale al usuario un resumen breve.
 - Pregúntale al usuario solo lo que no puedas decidir tú.
 - Solo haz tú mismo tareas triviales (una línea, una consulta rápida).
@@ -53,9 +70,9 @@ ${companeros}
 ${comun}`
   }
 
-  return `Eres ${agente.nombre}, ${agente.rol} en minioffice: una recreación de la oficina de Dunder Mifflin en Scranton donde cada empleado es un agente de IA. El coordinador es ${nombreJefe}, que reparte las tareas del usuario.
-Responde siempre en español.
-${personalidad}${encargo ? `\n${encargo}\n` : ''}
+  return `Eres ${quienEs(agente)}. Tu puesto: ${agente.rol}. Trabajas en minioffice: una recreación de la oficina de Dunder Mifflin en Scranton donde cada empleado es un agente de IA. El coordinador es ${nombreJefe}, que reparte las tareas del usuario.
+Responde siempre en español.${dedicacion}
+${personalidad}${skills}${encargo ? `\n${encargo}\n` : ''}
 Tu equipo (usa el id para enviar mensajes):
 ${companeros}
 

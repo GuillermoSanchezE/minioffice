@@ -1,12 +1,11 @@
 import { execFile } from 'node:child_process'
-import { cpSync, existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs'
-import { homedir, tmpdir } from 'node:os'
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
+import { homedir } from 'node:os'
 import { delimiter, join } from 'node:path'
 import type { AgentDefinition } from '../shared/types'
 import type { Capacidad, CatalogoItem } from '../shared/acciones'
 import { PROVEEDORES } from '../shared/motores'
 
-const REPO_SKILLS = 'https://github.com/anthropics/skills.git'
 const TIEMPO_INSTALAR_MS = 5 * 60_000
 
 interface Entrada {
@@ -22,26 +21,11 @@ interface Entrada {
 }
 
 /**
- * Catalogo curado. Las skills salen del repositorio publico de Anthropic; los
- * MCP se registran con `claude mcp add`; los motores son CLIs de npm.
+ * Catalogo curado de MCP (se registran con `claude mcp add`) y motores (CLIs
+ * de npm). Las skills tienen su propio catalogo en shared/skills.ts y se
+ * asignan por agente desde la biblioteca de minioffice.
  */
 const CATALOGO: Entrada[] = [
-  { tipo: 'skill', nombre: 'skill-creator', categoria: 'La oficina misma', autor: 'Anthropic', descripcion: 'Crea una skill nueva contigo, una pregunta a la vez.' },
-  { tipo: 'skill', nombre: 'claude-api', categoria: 'Código e ingeniería', autor: 'Anthropic', descripcion: 'Guía oficial para programar con la API de Claude: modelos, herramientas, caché.' },
-  { tipo: 'skill', nombre: 'mcp-builder', categoria: 'Código e ingeniería', autor: 'Anthropic', descripcion: 'Te acompaña a escribir tu propio servidor MCP.' },
-  { tipo: 'skill', nombre: 'web-artifacts-builder', categoria: 'Código e ingeniería', autor: 'Anthropic', descripcion: 'Arma páginas HTML completas con React y Tailwind.' },
-  { tipo: 'skill', nombre: 'webapp-testing', categoria: 'Código e ingeniería', autor: 'Anthropic', descripcion: 'Maneja un navegador real con Playwright para probar una web.' },
-  { tipo: 'skill', nombre: 'frontend-design', categoria: 'Diseño', autor: 'Anthropic', descripcion: 'Diseño visual con intención: tipografía, dirección estética, nada genérico.' },
-  { tipo: 'skill', nombre: 'canvas-design', categoria: 'Diseño', autor: 'Anthropic', descripcion: 'Pósters y piezas visuales en PNG o PDF.' },
-  { tipo: 'skill', nombre: 'theme-factory', categoria: 'Diseño', autor: 'Anthropic', descripcion: 'Aplica temas de color y tipografía a documentos, slides o páginas.' },
-  { tipo: 'skill', nombre: 'algorithmic-art', categoria: 'Diseño', autor: 'Anthropic', descripcion: 'Arte generativo con p5.js.' },
-  { tipo: 'skill', nombre: 'slack-gif-creator', categoria: 'Diseño', autor: 'Anthropic', descripcion: 'GIFs animados listos para Slack.' },
-  { tipo: 'skill', nombre: 'docx', categoria: 'Documentos y escritura', autor: 'Anthropic', descripcion: 'Crea, lee y edita documentos de Word.' },
-  { tipo: 'skill', nombre: 'pdf', categoria: 'Documentos y escritura', autor: 'Anthropic', descripcion: 'Extrae, une, divide, rellena y crea PDFs.' },
-  { tipo: 'skill', nombre: 'pptx', categoria: 'Documentos y escritura', autor: 'Anthropic', descripcion: 'Presentaciones de PowerPoint: crear, leer y editar.' },
-  { tipo: 'skill', nombre: 'xlsx', categoria: 'Documentos y escritura', autor: 'Anthropic', descripcion: 'Hojas de cálculo con fórmulas, formato y gráficos.' },
-  { tipo: 'skill', nombre: 'doc-coauthoring', categoria: 'Documentos y escritura', autor: 'Anthropic', descripcion: 'Escribe propuestas y especificaciones contigo, paso a paso.' },
-  { tipo: 'skill', nombre: 'internal-comms', categoria: 'Documentos y escritura', autor: 'Anthropic', descripcion: 'Reportes de estado, actualizaciones y comunicados internos.' },
   { tipo: 'mcp', nombre: 'playwright', categoria: 'Navegador', autor: 'Microsoft', descripcion: 'Controla un navegador: navegar, hacer clic, capturar.', mcp: ['playwright', '--', 'npx', '-y', '@playwright/mcp@latest'] },
   { tipo: 'mcp', nombre: 'chrome-devtools', categoria: 'Navegador', autor: 'Google', descripcion: 'DevTools de Chrome: consola, red y rendimiento.', mcp: ['chrome-devtools', '--', 'npx', '-y', 'chrome-devtools-mcp@latest'] },
   { tipo: 'mcp', nombre: 'context7', categoria: 'Documentación', autor: 'Upstash', descripcion: 'Documentación al día de miles de librerías.', mcp: ['--transport', 'http', 'context7', 'https://mcp.context7.com/mcp'] },
@@ -62,7 +46,6 @@ const CATALOGO: Entrada[] = [
 ]
 
 function comandoDe(e: Entrada): string {
-  if (e.tipo === 'skill') return `git clone --depth 1 ${REPO_SKILLS} && cp -r skills/skills/${e.nombre} ~/.claude/skills/`
   if (e.tipo === 'mcp') return `claude mcp add --scope user ${(e.mcp ?? []).join(' ')}`
   return `npm install -g ${e.npm}`
 }
@@ -221,28 +204,10 @@ export class Capacidades {
     const e = CATALOGO.find((x) => x.nombre === nombre && x.tipo === tipo)
     if (!e) throw new Error('Eso no está en el catálogo.')
     try {
-      if (e.tipo === 'skill') return await this.instalarSkill(e.nombre)
       if (e.tipo === 'mcp') return await ejecutar('claude', ['mcp', 'add', '--scope', 'user', ...(e.mcp ?? [])])
       return await ejecutar('npm', ['install', '-g', e.npm ?? e.nombre])
     } catch (err) {
       throw new Error(`No se pudo instalar ${e.nombre}: ${(err as Error).message}\nHazlo a mano con:\n${comandoDe(e)}`)
-    }
-  }
-
-  private async instalarSkill(nombre: string): Promise<string> {
-    const destino = join(this.carpetaSkills(), nombre)
-    if (existsSync(destino)) return `${nombre} ya estaba en ${destino}`
-    const temporal = mkdtempSync(join(tmpdir(), 'minioffice-skill-'))
-    try {
-      await ejecutar('git', ['clone', '--depth', '1', '--filter=blob:none', '--sparse', REPO_SKILLS, 'repo'], temporal)
-      const repo = join(temporal, 'repo')
-      await ejecutar('git', ['sparse-checkout', 'set', `skills/${nombre}`], repo)
-      const origen = join(repo, 'skills', nombre)
-      if (!existsSync(join(origen, 'SKILL.md'))) throw new Error('El repositorio no tiene esa skill.')
-      cpSync(origen, destino, { recursive: true })
-      return `${nombre} instalada en ${destino}. Los agentes la ven al iniciar su próxima sesión.`
-    } finally {
-      rmSync(temporal, { recursive: true, force: true })
     }
   }
 }

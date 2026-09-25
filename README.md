@@ -38,7 +38,7 @@ descanso, Jim frente a Dwight, Phyllis frente a Stanley, contabilidad, cocina y 
 | actividad     | Registro de todo lo que pasa en la oficina                                                 |
 | comandos      | Iniciar/detener a todos, difundir un mensaje, comandos guardados, `/compact` a todos       |
 | temporales    | Ayudantes de una sola tarea (`claude -p`) que se van cuando terminan                       |
-| capacidades   | Skills, servidores MCP y motores: catálogo, instaladas y "quién tiene qué"                 |
+| capacidades   | Skills por agente (con explicación en español), servidores MCP, motores y "quién tiene qué" |
 | equipo        | Todos los agentes en tarjetas con resumen del jefe (gasto, frenos, tareas, preguntas)      |
 | grapadora     | La criatura flotante: cara, forma, expresión, tamaño, color, opacidad, acciones, capturas  |
 
@@ -86,26 +86,46 @@ Escríbele en la cola de su terminal o despacha desde **monitor**. `npm run buil
 
 ## El reparto
 
-| id         | Personaje       | Puesto                         | Dónde se sienta              |
-| ---------- | --------------- | ------------------------------ | ---------------------------- |
-| `michael`  | Michael Scott   | Gerente Regional (coordinador) | Su oficina                   |
-| `dwight`   | Dwight Schrute  | Asistente del Gerente Regional | Frente a Jim                 |
-| `jim`      | Jim Halpert     | Representante de ventas        | Frente a Dwight              |
-| `pam`      | Pam Beesly      | Recepcionista                  | Recepción                    |
-| `andy`     | Andy Bernard    | Representante de ventas        | Junto a la oficina de Michael |
-| `ryan`     | Ryan Howard     | Temporal                       | Anexo                        |
-| `kelly`    | Kelly Kapoor    | Atención al cliente            | Anexo                        |
-| `angela`   | Angela Martin   | Jefa de contabilidad           | Contabilidad                 |
-| `kevin`    | Kevin Malone    | Contador                       | Contabilidad                 |
-| `oscar`    | Oscar Martinez  | Contador                       | Contabilidad                 |
-| `stanley`  | Stanley Hudson  | Representante de ventas        | Frente a Phyllis             |
-| `phyllis`  | Phyllis Vance   | Representante de ventas        | Frente a Stanley             |
-| `creed`    | Creed Bratton   | Control de calidad             | Al fondo                     |
-| `meredith` | Meredith Palmer | Relaciones con proveedores     | Al fondo, junto a Creed      |
-| `toby`     | Toby Flenderson | Recursos Humanos               | Anexo                        |
+La oficina se dedica a software y páginas web (se cambia en Ajustes). Cada personaje conserva su
+personalidad de la serie y tiene un puesto de software con skills sugeridas:
 
-Cada agente sabe quién es y lo usa en el tono de sus mensajes, sin que afecte a la calidad del
-trabajo. Las sesiones se abren al iniciarlas o cuando les llega un mensaje.
+| id         | Personaje       | Puesto                            | Skills sugeridas                                                         |
+| ---------- | --------------- | --------------------------------- | ------------------------------------------------------------------------ |
+| `michael`  | Michael Scott   | Director del proyecto (coordina)  | product-lens, verification-loop                                          |
+| `dwight`   | Dwight Schrute  | Backend y bases de datos          | backend-patterns, api-design, postgres-patterns, database-migrations, error-handling |
+| `jim`      | Jim Halpert     | Frontend (React y Next.js)        | frontend-patterns, react-patterns, nextjs-turbopack, react-performance   |
+| `pam`      | Pam Beesly      | Diseño UI/UX                      | ui-ux-pro-max, design-system, ui-styling, frontend-design                |
+| `andy`     | Andy Bernard    | SEO y páginas de venta            | seo, banner-design, make-interfaces-feel-better                          |
+| `ryan`     | Ryan Howard     | Producto y crecimiento            | product-lens, seo                                                        |
+| `kelly`    | Kelly Kapoor    | Textos y contenido                | brand, brand-voice, article-writing                                      |
+| `angela`   | Angela Martin   | QA y pruebas                      | tdd-workflow, e2e-testing, webapp-testing, react-testing, verification-loop |
+| `kevin`    | Kevin Malone    | Mantenimiento y tareas pequeñas   | coding-standards, git-workflow                                           |
+| `oscar`    | Oscar Martinez  | Arquitectura y revisión de código | coding-standards, architecture-decision-records, error-handling, verification-loop |
+| `stanley`  | Stanley Hudson  | Documentación                     | codebase-onboarding, documentation-lookup                                |
+| `phyllis`  | Phyllis Vance   | Accesibilidad                     | accessibility, ui-ux-pro-max, make-interfaces-feel-better                |
+| `creed`    | Creed Bratton   | DevOps y despliegues              | deployment-patterns, docker-patterns, github-ops                         |
+| `meredith` | Meredith Palmer | Integraciones y APIs externas     | api-design, mcp-builder, error-handling                                  |
+| `toby`     | Toby Flenderson | Seguridad                         | security-review, error-handling                                          |
+
+Las sesiones se abren al iniciarlas o cuando les llega un mensaje.
+
+## Skills por agente
+
+En **capacidades → Skills por agente** eliges las skills de cada trabajador. Cada una tiene una
+explicación corta en español de para qué sirve antes de marcarla; las que no están en el catálogo
+se pueden explicar con un clic (lo resume Claude Code y queda guardado).
+
+- **Catálogo**: 5 skills de [UI/UX Pro Max](https://github.com/nextlevelbuilder/ui-ux-pro-max-skill)
+  (MIT), 36 de [ECC · Everything Claude Code](https://github.com/affaan-m/everything-claude-code)
+  (MIT, elegidas entre sus 292 por ser útiles para software y web) y 9 de
+  [Anthropic](https://github.com/anthropics/skills).
+- **Biblioteca**: se descargan a `~/.minioffice/skills/` la primera vez que alguien las necesita.
+- **Solo las suyas**: al iniciar la sesión de un agente, minioffice arma un plugin con sus skills y
+  se lo pasa a Claude Code con `--plugin-dir`. Pam carga las de diseño y Dwight las de backend; nadie
+  gasta contexto en lo que no usa. Las skills de `~/.claude/skills` siguen siendo de todos.
+- **Sugeridas para todo el equipo** instala y asigna de una vez las de cada puesto (se suman, no se
+  quita nada). Los cambios se aplican al reiniciar la sesión del agente.
+- `ui-ux-pro-max` usa un buscador local en Python 3.
 
 ## Configurar tu equipo
 
@@ -116,7 +136,7 @@ Lo más cómodo es el asistente (**contratar** o el lápiz de cada tarjeta): gua
 {
   "coordinador": { "modelo": "claude-opus-5" },
   "agentes": [
-    { "id": "dwight", "cwd": "../mi-proyecto", "aislamientoGit": true },
+    { "id": "dwight", "cwd": "../mi-proyecto", "aislamientoGit": true, "skills": ["backend-patterns", "api-design"] },
     { "id": "oscar", "cwd": "../contabilidad", "modelo": "claude-sonnet-5", "limiteTokens": 2000000 },
     { "id": "kevin", "proveedor": "codex" },
     { "id": "darryl", "nombre": "Darryl Philbin", "rol": "Jefe de almacén", "personalidad": "Tranquilo y con los pies en la tierra." }
@@ -134,6 +154,7 @@ Lo más cómodo es el asistente (**contratar** o el lápiz de cada tarjeta): gua
 | `comando`, `args`| Comando propio (con `personalizado`) y argumentos extra.                            |
 | `cwd`            | Carpeta de trabajo, relativa a donde lanzas minioffice.                             |
 | `aislamientoGit` | Trabaja en su propio worktree, rama `minioffice/<id>`.                              |
+| `skills`         | Skills de la biblioteca que carga su sesión, por ejemplo `["ui-ux-pro-max", "seo"]`. |
 | `descripcion`, `objetivo`, `nota`, `limiteTokens`, `reanudar` | Encargo, nota visible, freno de tokens e id de sesión a retomar. |
 
 ## El hive (`.hive/`)
@@ -194,6 +215,7 @@ src/
 
 ## Lo que no incluye
 
-- **Voz**: dictar mensajes o grabar y transcribir reuniones necesita un servicio de voz a texto.
+- **Voz dentro de la app**: todavía no hay botón de micrófono. El dictado del sistema sí funciona en
+  cualquier caja de texto (macOS: pulsa dos veces `Fn` o la tecla 🌐; Windows: `Win + H`).
 - **Slack**: no hay conexión con Slack; para avisos de fuera usa el webhook.
 - **Instalador**: se ejecuta con `npm run dev` / `npm start`, sin empaquetar.

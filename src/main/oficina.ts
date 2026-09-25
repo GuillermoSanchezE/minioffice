@@ -33,6 +33,8 @@ import { instruccionesPara } from './agents/instrucciones'
 import { estadoGit, worktreePara } from './git'
 import { Temporales } from './temporales'
 import { Disparadores } from './disparadores'
+import { Biblioteca } from './skills'
+import { NOMBRE_SKILL_VALIDO, sugeridasPara } from '../shared/skills'
 
 const TICK_MS = 400
 const REVISION_DISCO_MS = 2000
@@ -91,6 +93,7 @@ export class Oficina extends EventEmitter {
   private router: MailboxRouter
   readonly temporales: Temporales
   readonly disparadores: Disparadores
+  readonly biblioteca: Biblioteca
   private ajustesActuales: Ajustes
   private mensajes: HiveMessage[] = []
   private tareas: Tarea[] = []
@@ -107,6 +110,11 @@ export class Oficina extends EventEmitter {
     this.hive = new HiveStore(raiz)
     this.defs = cargarEquipo(raiz)
     this.ajustesActuales = this.hive.leerAjustes()
+    this.biblioteca = new Biblioteca(
+      () => this.defs,
+      raiz,
+      (texto) => this.evento('sistema', texto)
+    )
     this.router = new MailboxRouter(
       this.hive,
       () => this.defs.map((d) => d.id),
@@ -330,12 +338,19 @@ export class Oficina extends EventEmitter {
 
   // --------------------------------------------------------------- sesiones
 
-  private argumentos(def: AgentDefinition, prompt: string | undefined, sesionId: string | undefined, reanudar: boolean): string[] {
+  private argumentos(
+    def: AgentDefinition,
+    prompt: string | undefined,
+    sesionId: string | undefined,
+    reanudar: boolean,
+    plugin: string | undefined
+  ): string[] {
     const [, ...args] = comandoBase(def, this.ajustesActuales.modoPermisos)
     if (def.proveedor === 'claude' && sesionId) {
+      if (plugin) args.push('--plugin-dir', plugin)
       args.push(
         '--append-system-prompt',
-        instruccionesPara(def, this.defs, this.hive.raiz),
+        instruccionesPara(def, this.defs, this.hive.raiz, this.ajustesActuales.enfoque),
         '--add-dir',
         this.hive.raiz,
         '--name',
@@ -374,10 +389,17 @@ export class Oficina extends EventEmitter {
       if (def.proveedor === 'claude') sesionId = reanudarId || randomUUID()
       else if (!continuar) {
         this.cola(def.id).unshift(
-          `${instruccionesPara(def, this.defs, this.hive.raiz)}\n\n${prompt ?? 'Confirma en una línea que leíste esto y espera instrucciones.'}`
+          `${instruccionesPara(def, this.defs, this.hive.raiz, this.ajustesActuales.enfoque)}\n\n${prompt ?? 'Confirma en una línea que leíste esto y espera instrucciones.'}`
         )
       }
-      const args = this.argumentos(def, prompt, sesionId, !!reanudarId)
+      let plugin: string | undefined
+      if (def.proveedor === 'claude' && def.skills?.length) {
+        await this.biblioteca.asegurar(def.skills)
+        const armado = this.biblioteca.prepararPlugin(def)
+        if (armado?.ruta) plugin = armado.ruta
+        if (armado?.faltan.length) this.evento('sistema', `${def.nombre} arranca sin: ${armado.faltan.join(', ')} (no están instaladas)`, def.id)
+      }
+      const args = this.argumentos(def, prompt, sesionId, !!reanudarId, plugin)
       const error = this.sesiones.iniciar(def.id, { comando, args, cwd })
       if (error) return fallo(error)
 
@@ -555,7 +577,10 @@ export class Oficina extends EventEmitter {
       this.evento('contratacion', `Se contrató a ${limpio.nombre} (${limpio.rol})`, limpio.id)
     }
     this.guardarDefs()
-    if (!iniciar) return
+    if (!iniciar) {
+      void this.biblioteca.asegurar(limpio.skills)
+      return
+    }
     // Si ya tenia sesion, se reinicia retomando la conversacion para que tome los cambios.
     if (this.sesiones.activa(limpio.id)) void this.reiniciar(limpio.id, true)
     else void this.iniciarAgente(limpio)
@@ -570,6 +595,35 @@ export class Oficina extends EventEmitter {
     this.runtimes.delete(id)
     this.guardarDefs()
     this.evento('archivo', `${def.nombre} dejó la oficina`, id)
+  }
+
+  // ----------------------------------------------------------------- skills
+
+  private asignarSkills(id: string, skills: string[]): void {
+    const i = this.defs.findIndex((d) => d.id === id)
+    if (i === -1) throw new Error('Ese agente no existe.')
+    const limpias = [...new Set(skills.filter((x) => NOMBRE_SKILL_VALIDO.test(x)))]
+    const antes = this.defs[i].skills ?? []
+    this.defs[i] = { ...this.defs[i], skills: limpias.length ? limpias : undefined }
+    this.guardarDefs()
+    const nuevas = limpias.filter((x) => !antes.includes(x))
+    const quitadas = antes.filter((x) => !limpias.includes(x))
+    const cambios = [nuevas.length ? `+ ${nuevas.join(', ')}` : '', quitadas.length ? `− ${quitadas.join(', ')}` : ''].filter(Boolean).join(' ')
+    if (cambios) this.evento('contratacion', `Skills de ${this.defs[i].nombre}: ${cambios}`, id)
+    void this.biblioteca.asegurar(nuevas)
+  }
+
+  /** Instala y asigna a cada agente las skills sugeridas para su puesto (sin quitarle las que ya tiene). */
+  private async aplicarSugeridas(ids?: string[]): Promise<string> {
+    const destino = this.defs.filter((d) => (!ids || ids.includes(d.id)) && d.proveedor === 'claude')
+    const todas = [...new Set(destino.flatMap((d) => sugeridasPara(d.personaje)))]
+    if (!todas.length) return 'Ninguno de esos agentes tiene skills sugeridas.'
+    const instalado = await this.biblioteca.instalar(todas)
+    for (const d of destino) {
+      const sugeridas = sugeridasPara(d.personaje)
+      if (sugeridas.length) this.asignarSkills(d.id, [...(d.skills ?? []), ...sugeridas])
+    }
+    return `${instalado} Asignadas a ${destino.length} agentes; se aplican cuando cada uno reinicie su sesión.`
   }
 
   // ---------------------------------------------------------------- tareas
@@ -759,7 +813,8 @@ Todo en español.`
         const def = this.def(a.id)
         if (!def) return ''
         const rt = this.runtime(def.id)
-        const args = this.argumentos(def, undefined, rt.sesionId ?? '<id de sesión>', false).map((x) =>
+        const plugin = def.skills?.length ? '<plugin con sus skills>' : undefined
+        const args = this.argumentos(def, undefined, rt.sesionId ?? '<id de sesión>', false, plugin).map((x) =>
           x.length > 120 ? '<instrucciones de minioffice>' : x
         )
         return unirComando([comandoBase(def, this.ajustesActuales.modoPermisos)[0], ...args])
@@ -851,6 +906,23 @@ Todo en español.`
         return [...new Set([this.raiz, ...this.defs.map((d) => d.cwd)])]
       case 'webhook:info':
         return this.disparadores.info()
+      case 'skills:listar':
+        return this.biblioteca.listar()
+      case 'skills:instalar': {
+        const r = await this.biblioteca.instalar(a.nombres)
+        this.evento('sistema', r)
+        return r
+      }
+      case 'skills:desinstalar':
+        this.biblioteca.desinstalar(a.nombre)
+        this.evento('sistema', `Se quitó la skill ${a.nombre} de la biblioteca`)
+        return
+      case 'skills:asignar':
+        return this.asignarSkills(a.id, a.skills)
+      case 'skills:sugeridas':
+        return this.aplicarSugeridas(a.agentes)
+      case 'skills:explicar':
+        return this.biblioteca.explicar(a.nombre)
       default:
         return this.ejecutarExtra(a)
     }

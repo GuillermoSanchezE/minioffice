@@ -5,6 +5,7 @@ import { accion, intentar, useAgentes, useOficina } from '../../tienda'
 import { cambiarUi, seleccionar } from '../../ui'
 import { dinero, tokens } from '../../formato'
 import { Barra, ChipEstado, Icono, Modal, Retrato } from '../basicos'
+import { ChipsSkills } from '../SelectorSkills'
 
 export function nombreModelo(a: Agente): string {
   if (a.proveedor !== 'claude') return a.modelo ? `${proveedorDe(a.proveedor).nombre} · ${a.modelo}` : proveedorDe(a.proveedor).nombre
@@ -133,6 +134,9 @@ function TarjetaAgente({ agente: a, tarea, onPrompt }: { agente: Agente; tarea?:
         </div>
         <ChipEstado estado={rt.estado} />
       </div>
+      <button className="enlace-skills" onClick={() => cambiarUi({ seleccionado: null, pestana: 'capacidades', skillsDe: a.id })} title="Elegir skills">
+        {a.skills?.length ? <ChipsSkills skills={a.skills} max={3} /> : <span className="suave pequeno">+ skills</span>}
+      </button>
       <div className="tarea-actual mono pequeno recorte">{tarea ?? (rt.pendientes > 0 ? `${rt.pendientes} mensajes en cola` : 'sin tarea asignada')}</div>
       <span className="pixel etiqueta-seccion">Terminal</span>
       <pre className="terminal-mini">{rt.estado === 'detenido' ? 'zZz… (sin sesión)' : (ultimo ?? '…').slice(-240)}</pre>

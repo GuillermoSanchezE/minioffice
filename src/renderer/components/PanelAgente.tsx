@@ -4,6 +4,7 @@ import { accion, intentar, useAgentes } from '../tienda'
 import { cambiarUi, seleccionar } from '../ui'
 import { carpeta, hace, hora, tokens } from '../formato'
 import { Barra, ChipEstado, Icono, Retrato, Vacio } from './basicos'
+import { ChipsSkills } from './SelectorSkills'
 import { VistaTerminal } from './VistaTerminal'
 import { Cola } from './Cola'
 
@@ -88,6 +89,14 @@ export function PanelAgente({ agente }: { agente: Agente }): JSX.Element {
           <Barra valor={rt.contexto} max={rt.ventana} />
         </span>
       </section>
+
+      <div className="fila-skills-agente">
+        <span className="pixel etiqueta-seccion">Skills</span>
+        {agente.skills?.length ? <ChipsSkills skills={agente.skills} max={5} /> : <span className="suave pequeno">ninguna asignada</span>}
+        <button className="boton-mini" onClick={() => cambiarUi({ seleccionado: null, pestana: 'capacidades', skillsDe: agente.id })}>
+          elegir skills
+        </button>
+      </div>
 
       <div className="guiar">
         <input

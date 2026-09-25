@@ -2360,3 +2360,253 @@ input[type='range'] {
     grid-template-columns: 1fr;
   }
 }
+
+/* ----------------------------------------------------------------- skills */
+
+.selector-skills {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.bloque-skills {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.fila-skill {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+  padding: 7px 10px;
+  border: 1px solid var(--borde);
+  border-radius: 6px;
+  background: var(--tarjeta-2);
+}
+
+.fila-skill.marcada {
+  border-color: var(--mostaza);
+  background: color-mix(in srgb, var(--mostaza-claro) 45%, var(--tarjeta-2));
+}
+
+.fila-skill input {
+  margin-top: 3px;
+}
+
+.skill-global {
+  color: var(--teal);
+  text-align: center;
+  line-height: 20px;
+}
+
+.skill-cuerpo {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  cursor: pointer;
+  min-width: 0;
+}
+
+.formulario .skill-cuerpo {
+  color: var(--tinta);
+}
+
+.skill-cabecera {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.skill-resumen {
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+.insignia-fuente,
+.insignia-sugerida {
+  font-size: 10.5px;
+  border-radius: 3px;
+  padding: 0 6px;
+  border: 1px solid var(--borde-fuerte);
+  background: var(--tarjeta);
+  white-space: nowrap;
+}
+
+.fuente-uiux {
+  border-color: #c98bb0;
+  background: color-mix(in srgb, #f3d6e6 70%, var(--tarjeta));
+}
+
+.fuente-ecc {
+  border-color: var(--teal);
+  background: var(--teal-claro);
+}
+
+.fuente-anthropic {
+  border-color: #d98a5c;
+  background: color-mix(in srgb, #f6dccb 70%, var(--tarjeta));
+}
+
+.fuente-global {
+  border-color: var(--verde);
+}
+
+.insignia-sugerida {
+  background: var(--mostaza-claro);
+  border-color: var(--mostaza);
+}
+
+.chips-skills {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+  min-width: 0;
+}
+
+.chip-skill {
+  font-size: 10.5px;
+  background: var(--teal-claro);
+  border: 1px solid color-mix(in srgb, var(--teal) 50%, transparent);
+  border-radius: 3px;
+  padding: 0 5px;
+  white-space: nowrap;
+}
+
+.skills-agentes {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+
+@container (max-width: 700px) {
+  .skills-agentes {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .lista-agentes-skills {
+    flex-direction: row !important;
+    overflow-x: auto;
+  }
+
+  .fila-agente-skill {
+    min-width: 160px;
+  }
+}
+
+.lista-agentes-skills {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  position: sticky;
+  top: 0;
+}
+
+.fila-agente-skill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  border-radius: 5px;
+  padding: 4px 6px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.fila-agente-skill > span {
+  display: flex;
+  flex-direction: column;
+}
+
+.fila-agente-skill:hover {
+  background: var(--tarjeta);
+}
+
+.fila-agente-skill.activa {
+  background: var(--tarjeta);
+  border-color: var(--borde-fuerte);
+}
+
+.cuenta-skills {
+  font-size: 11px;
+  min-width: 20px;
+  text-align: center;
+  border-radius: 10px;
+  background: var(--teal);
+  color: #fff;
+  padding: 0 5px;
+}
+
+.cuenta-skills.vacia {
+  background: var(--borde);
+  color: var(--tinta-suave);
+}
+
+.detalle-skills {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.lista-sugeridas {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.sugerida-agente {
+  border: 1px solid var(--borde);
+  border-radius: 6px;
+  padding: 8px 10px;
+  background: var(--tarjeta-2);
+}
+
+.sugerida-agente.apagada {
+  opacity: 0.55;
+}
+
+.sugerida-agente ul {
+  margin-top: 4px;
+}
+
+.celda-skill {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: var(--tinta-suave);
+  width: 24px;
+  height: 22px;
+  border-radius: 4px;
+}
+
+.celda-skill:hover {
+  background: var(--tarjeta);
+}
+
+.celda-skill.si {
+  color: var(--teal);
+}
+
+.fila-skills-agente {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 0 12px 8px;
+}
+
+.enlace-skills {
+  border: none;
+  background: none;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+  min-height: 18px;
+}

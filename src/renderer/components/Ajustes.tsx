@@ -30,6 +30,16 @@ export function Ajustes(): JSX.Element {
           ))}
           <p className="suave pequeno">Se aplica a las sesiones que se inicien desde ahora.</p>
 
+          <span className="etiqueta-campo">A qué se dedica la oficina</span>
+          <textarea
+            id="enfoque"
+            rows={2}
+            defaultValue={ajustes.enfoque}
+            onBlur={(e) => e.target.value !== ajustes.enfoque && guardar({ enfoque: e.target.value })}
+            placeholder="Esta oficina desarrolla software y páginas web."
+          />
+          <p className="suave pequeno">Todos los agentes lo leen al iniciar su sesión.</p>
+
           <span className="etiqueta-campo">Oficina</span>
           <label className="casilla">
             <input type="checkbox" checked={ajustes.michaelAlIniciar} onChange={(e) => guardar({ michaelAlIniciar: e.target.checked })} />

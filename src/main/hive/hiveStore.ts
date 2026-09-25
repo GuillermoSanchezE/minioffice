@@ -74,7 +74,8 @@ export const AJUSTES_POR_DEFECTO: Ajustes = {
   webhookClave: randomUUID().replace(/-/g, '').slice(0, 24),
   webhookRed: false,
   companeros: [],
-  maxTemporales: 4
+  maxTemporales: 4,
+  enfoque: 'Esta oficina desarrolla software y páginas web.'
 }
 
 function leerJson<T>(ruta: string): T | null {

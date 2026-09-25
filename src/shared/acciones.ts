@@ -1,3 +1,4 @@
+import type { AreaSkill, FuenteSkill } from './skills'
 import type {
   AgentDefinition,
   Ajustes,
@@ -36,6 +37,25 @@ export interface CatalogoItem {
   categoria: string
   instalada: boolean
   comando: string
+}
+
+export interface SkillOficina {
+  nombre: string
+  /** De dónde viene: una fuente del catálogo, 'propia' (otra en la biblioteca) o 'global' (~/.claude/skills). */
+  fuente: FuenteSkill | 'propia' | 'global'
+  area: AreaSkill
+  /** Para qué sirve, en español (vacío si aún no se ha explicado). */
+  resumen: string
+  /** Descripción original de su SKILL.md. */
+  descripcion: string
+  requiere?: string
+  instalada: boolean
+  /** Las globales las ven todos los agentes de Claude Code y no se asignan. */
+  global: boolean
+  /** Agentes que la tienen asignada. */
+  agentes: string[]
+  /** Agentes a los que se la sugerimos por su puesto. */
+  sugeridaPara: string[]
 }
 
 export interface Captura {
@@ -95,6 +115,12 @@ export type Accion =
   | { tipo: 'capacidades:listar' }
   | { tipo: 'capacidades:catalogo' }
   | { tipo: 'capacidades:instalar'; nombre: string; tipoCapacidad: CatalogoItem['tipo'] }
+  | { tipo: 'skills:listar' }
+  | { tipo: 'skills:instalar'; nombres: string[] }
+  | { tipo: 'skills:desinstalar'; nombre: string }
+  | { tipo: 'skills:asignar'; id: string; skills: string[] }
+  | { tipo: 'skills:sugeridas'; agentes?: string[] }
+  | { tipo: 'skills:explicar'; nombre: string }
   | { tipo: 'grapadora:captura'; enviarA?: string }
   | { tipo: 'grapadora:capturas' }
   | { tipo: 'grapadora:borrarCaptura'; archivo: string }
@@ -146,6 +172,10 @@ export interface RespuestaDe {
   'capacidades:listar': Capacidad[]
   'capacidades:catalogo': CatalogoItem[]
   'capacidades:instalar': string
+  'skills:listar': SkillOficina[]
+  'skills:instalar': string
+  'skills:sugeridas': string
+  'skills:explicar': string
   'grapadora:captura': string | null
   'grapadora:capturas': Captura[]
   'grapadora:leerAjustes': AjustesGrapadora

@@ -2,13 +2,15 @@ import { useEffect, useMemo, useState } from 'react'
 import type { AgentDefinition, ProveedorId } from '../../shared/types'
 import { MODELOS_CLAUDE, PROVEEDORES, comandoBase, partirComando, proveedorDe, unirComando } from '../../shared/motores'
 import { REPARTO, ID_MICHAEL } from '../../shared/reparto'
+import { PUESTOS, puestoDe } from '../../shared/skills'
 import { accion, avisar, intentar, useAgentes, useOficina } from '../tienda'
 import { cambiarUi, seleccionar } from '../ui'
 import { carpeta } from '../formato'
 import { Icono, Modal, Retrato } from './basicos'
+import { ChipsSkills, SelectorSkills } from './SelectorSkills'
 
 const COLORES = ['#d9534f', '#4f9d69', '#3c8a99', '#d9a441', '#8a6fd1', '#d98a5c']
-const PASOS = ['Identidad', 'Espacio', 'Motor', 'Encargo'] as const
+const PASOS = ['Identidad', 'Espacio', 'Motor', 'Skills', 'Encargo'] as const
 
 function slug(texto: string): string {
   return texto
@@ -25,7 +27,7 @@ function nuevoAgente(raiz: string, ocupados: string[]): AgentDefinition {
   return {
     id: libre?.id ?? '',
     nombre: libre?.nombre ?? '',
-    rol: libre?.rol ?? '',
+    rol: libre ? (puestoDe(libre.id, libre.rol) ?? '') : '',
     personalidad: libre?.personalidad ?? '',
     personaje: libre?.id ?? 'darryl',
     color: COLORES[ocupados.length % COLORES.length],
@@ -205,6 +207,7 @@ export function Asistente({ inicial }: { inicial: AgentDefinition | 'nuevo' }): 
             <span className="suave pequeno">{a.rol || 'sin rol'}</span>
             <span className="mono pequeno suave">{carpeta(a.cwd)}</span>
             <span className="pequeno">{proveedorDe(a.proveedor).nombre}</span>
+            <ChipsSkills skills={a.skills} max={4} />
           </div>
         </nav>
 
@@ -252,7 +255,7 @@ export function Asistente({ inicial }: { inicial: AgentDefinition | 'nuevo' }): 
                     onClick={() =>
                       cambiar({
                         personaje: p.id,
-                        ...(esNuevo && !a.nombre.trim() ? { nombre: p.nombre, rol: p.rol, personalidad: p.personalidad } : {})
+                        ...(esNuevo && !a.nombre.trim() ? { nombre: p.nombre, rol: puestoDe(p.id, p.rol) ?? p.rol, personalidad: p.personalidad } : {})
                       })
                     }
                   >
@@ -272,7 +275,9 @@ export function Asistente({ inicial }: { inicial: AgentDefinition | 'nuevo' }): 
               {esNuevo && personajeElegido && a.nombre !== personajeElegido.nombre && (
                 <button
                   className="boton-mini"
-                  onClick={() => cambiar({ nombre: personajeElegido.nombre, rol: personajeElegido.rol, personalidad: personajeElegido.personalidad })}
+                  onClick={() =>
+                    cambiar({ nombre: personajeElegido.nombre, rol: puestoDe(personajeElegido.id, personajeElegido.rol) ?? '', personalidad: personajeElegido.personalidad })
+                  }
                 >
                   usar nombre, rol y personalidad de {personajeElegido.nombre}
                 </button>
@@ -367,6 +372,21 @@ export function Asistente({ inicial }: { inicial: AgentDefinition | 'nuevo' }): 
           )}
 
           {paso === 3 && (
+            <>
+              <p className="suave pequeno">
+                Cada skill le enseña un oficio concreto. Lee para qué sirve y marca las que necesita
+                {PUESTOS[a.personaje] ? ` como ${PUESTOS[a.personaje].puesto.toLowerCase()}` : ''}. Las que falten se descargan al guardar.
+              </p>
+              <SelectorSkills
+                personaje={a.personaje}
+                proveedor={a.proveedor}
+                seleccion={a.skills ?? []}
+                onCambiar={(skills) => cambiar({ skills: skills.length ? skills : undefined })}
+              />
+            </>
+          )}
+
+          {paso === 4 && (
             <>
               <label>
                 Descripción del puesto

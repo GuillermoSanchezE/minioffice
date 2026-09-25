@@ -40,6 +40,8 @@ export interface AgentDefinition {
   nota?: string
   limiteTokens?: number
   esCoordinador?: boolean
+  /** Skills de la biblioteca de minioffice que se le cargan a su sesión (solo Claude Code). */
+  skills?: string[]
 }
 
 export interface AgentRuntime {
@@ -160,6 +162,8 @@ export interface Ajustes {
   webhookRed: boolean
   companeros: Companero[]
   maxTemporales: number
+  /** A qué se dedica la oficina; lo leen todos los agentes. */
+  enfoque: string
 }
 
 export type EstadoTemporal = 'corriendo' | 'hecho' | 'error' | 'cancelado'

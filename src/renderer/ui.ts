@@ -29,6 +29,8 @@ export interface EstadoUi {
   /** Agente en edicion, 'nuevo' para contratar o null si el asistente esta cerrado. */
   asistente: AgentDefinition | 'nuevo' | null
   ajustesAbiertos: boolean
+  /** Agente a abrir en Capacidades → Skills por agente. */
+  skillsDe: string | null
 }
 
 function leer<T>(clave: string, porDefecto: T): T {
@@ -56,7 +58,8 @@ let estado: EstadoUi = {
   tema: leer<Tema>('tema', 'claro'),
   anchoPanel: leer('anchoPanel', 560),
   asistente: null,
-  ajustesAbiertos: false
+  ajustesAbiertos: false,
+  skillsDe: null
 }
 
 const oyentes = new Set<() => void>()
