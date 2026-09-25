@@ -8,11 +8,17 @@ import { registrarIpc } from './ipc'
 import { Capacidades } from './capacidades'
 import { Grapadora } from './grapadora'
 import { carpetaDelProyecto, heredarPathDeLaShell, pedirCarpeta, reabrirEn, recordarProyecto } from './entorno'
+import { Dictado, registrarEsquemaModelos } from './dictado'
+
+// Dictado: los modelos de Whisper llegan por modelos:// y usan varios hilos (SharedArrayBuffer).
+registrarEsquemaModelos()
+app.commandLine.appendSwitch('enable-features', 'SharedArrayBuffer')
 
 let ventanaPrincipal: BrowserWindow | null = null
 let oficina: Oficina
 let capacidades: Capacidades
 let grapadora: Grapadora
+let dictado: Dictado
 const preload = join(__dirname, '../preload/index.js')
 
 function urlRenderer(pagina: string): { url?: string; archivo?: string } {
@@ -75,6 +81,18 @@ async function ejecutarExtra(a: Accion): Promise<unknown> {
       return grapadora.menu(a.abierto)
     case 'ventana:enfocar':
       return enfocar(a.pestana)
+    case 'dictado:estado':
+      return dictado.estado()
+    case 'dictado:ajustes':
+      return dictado.guardarAjustes(a.ajustes)
+    case 'dictado:borrar':
+      return dictado.borrar(a.modelo)
+    case 'dictado:preparado':
+      return dictado.preparado(a.modelo)
+    case 'dictado:permiso':
+      return dictado.permiso()
+    case 'dictado:privacidad':
+      return dictado.abrirPrivacidad()
     case 'proyecto:cambiar': {
       const ruta = await pedirCarpeta('Abrir otro proyecto', oficina.raiz)
       if (ruta && ruta !== oficina.raiz) reabrirEn(ruta)
@@ -113,6 +131,8 @@ async function crearVentana(): Promise<void> {
 
 app.whenReady().then(async () => {
   if (app.isPackaged) heredarPathDeLaShell()
+  dictado = new Dictado()
+  dictado.iniciar()
   const raiz = await carpetaDelProyecto()
   if (!raiz) {
     app.quit()

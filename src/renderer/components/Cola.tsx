@@ -2,6 +2,8 @@ import { useState, type KeyboardEvent } from 'react'
 import type { Agente } from '../../shared/types'
 import { accion, avisar, intentar, useAgentes } from '../tienda'
 import { Icono } from './basicos'
+import { BotonDictado } from './BotonDictado'
+import { juntarTexto } from '../dictado/voz'
 
 function normalizar(texto: string): string {
   return texto.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
@@ -99,6 +101,7 @@ export function Cola({ agente, menciones = false }: { agente: Agente; menciones?
       <div className="cola-acciones">
         <span className="suave pequeno">Enter envía cuando esté libre · Ctrl+Enter guía ya · Shift+Enter salto de línea</span>
         <span className="espaciador" />
+        <BotonDictado alTexto={(t) => setTexto((x) => juntarTexto(x, t))} />
         <button className="boton" onClick={() => void adjuntar()}>
           <Icono nombre="mas" /> archivos
         </button>

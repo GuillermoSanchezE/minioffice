@@ -113,6 +113,29 @@ Debajo, los tokens que procesó cada agente por hora o por día (leídos de sus 
 reparto por agente y por modelo, y lo que costaría a precio de API. Con tu plan no pagas ese costo:
 sirve para comparar. En la barra de título hay un indicador compacto del plan.
 
+## Dictado por voz
+
+Junto a los campos de mensaje (la cola de cada agente, el despacho de Michael, la bandeja, el
+prompt de un agente, difundir y temporales) hay un micrófono. Un clic empieza a grabar (el aro rojo
+crece con tu voz), otro clic transcribe y añade el texto al campo; `Esc` cancela.
+
+La transcripción la hace **Whisper dentro de la app** (transformers.js y onnxruntime-web en
+WebAssembly, en un worker). Tu voz no sale de tu equipo y no usa tokens de tu plan. La primera vez
+descarga el modelo de Hugging Face y lo guarda en la carpeta de la app
+(`~/Library/Application Support/minioffice/modelos`); después funciona sin internet. En **Ajustes →
+Dictado por voz** eliges el modelo y el idioma:
+
+| Modelo | Descarga | Para qué |
+|---|---|---|
+| Whisper small (predeterminado) | ≈250 MB | Entiende bien el español y la jerga técnica; unos segundos por frase |
+| Whisper base | ≈80 MB | Más rápido y ligero, se equivoca más con nombres propios |
+
+En Mac, la primera vez macOS pregunta si minioffice puede usar el micrófono. Si dijiste que no,
+actívalo en Ajustes del Sistema → Privacidad y seguridad → Micrófono.
+
+La prueba de punta a punta (`pruebas/dictado.cjs`, workflow **Prueba del dictado**) dicta una frase
+con la voz del sistema por un micrófono simulado y comprueba lo que escribe Whisper.
+
 ## El reparto
 
 La oficina se dedica a software y páginas web (se cambia en Ajustes). Cada personaje conserva su
@@ -236,20 +259,21 @@ src/
 │   ├── skills.ts         biblioteca de skills y plugin de cada agente
 │   ├── consumo.ts        tokens por hora y uso del plan
 │   ├── entorno.ts        carpeta del proyecto y PATH de la app instalada
+│   ├── dictado.ts        modelos de Whisper (modelos://, caché en disco) y permiso del micrófono
 │   └── grapadora.ts      ventana flotante y capturas
 ├── preload/              API segura para la ventana (window.minioffice)
 ├── renderer/             interfaz React
 │   ├── components/       centro de mando, pestañas, panel de agente, asistente…
 │   ├── oficina/          plano, caminos (A*) y escena animada
 │   ├── pixel/            dibujo de personajes y retratos
+│   ├── dictado/          micrófono y worker de Whisper
 │   └── grapadora/        la criatura flotante
 └── shared/               tipos, acciones, motores y el reparto
 ```
 
 ## Lo que no incluye
 
-- **Voz dentro de la app**: todavía no hay botón de micrófono. El dictado del sistema sí funciona en
-  cualquier caja de texto (macOS: pulsa dos veces `Fn` o la tecla 🌐; Windows: `Win + H`).
+- **Voz a voz**: el dictado escribe, pero los agentes no te hablan en voz alta.
 - **Slack**: no hay conexión con Slack; para avisos de fuera usa el webhook.
 - **Firma de Apple**: el .dmg va firmado ad hoc, no con un certificado de desarrollador; por eso
   macOS pide confirmación la primera vez.

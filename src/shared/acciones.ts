@@ -1,3 +1,4 @@
+import type { AjustesDictado, EstadoDictado, ModeloDictado, PermisoMicrofono } from './dictado'
 import type { AreaSkill, FuenteSkill } from './skills'
 import type {
   AgentDefinition,
@@ -134,6 +135,12 @@ export type Accion =
   | { tipo: 'ventana:enfocar'; pestana?: string }
   | { tipo: 'proyecto:cambiar' }
   | { tipo: 'webhook:info' }
+  | { tipo: 'dictado:estado' }
+  | { tipo: 'dictado:ajustes'; ajustes: Partial<AjustesDictado> }
+  | { tipo: 'dictado:borrar'; modelo: ModeloDictado }
+  | { tipo: 'dictado:preparado'; modelo: ModeloDictado }
+  | { tipo: 'dictado:permiso' }
+  | { tipo: 'dictado:privacidad' }
 
 export interface AjustesGrapadora {
   visible: boolean
@@ -184,6 +191,10 @@ export interface RespuestaDe {
   'grapadora:capturas': Captura[]
   'grapadora:leerAjustes': AjustesGrapadora
   'webhook:info': InfoWebhook
+  'dictado:estado': EstadoDictado
+  'dictado:ajustes': EstadoDictado
+  'dictado:borrar': EstadoDictado
+  'dictado:permiso': PermisoMicrofono
 }
 
 export type Respuesta<A extends Accion> = A['tipo'] extends keyof RespuestaDe ? RespuestaDe[A['tipo']] : void

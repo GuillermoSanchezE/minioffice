@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { intentar, useAgentes, useOficina } from '../../tienda'
 import { fecha } from '../../formato'
 import { Icono, Retrato, Vacio } from '../basicos'
+import { BotonDictado } from '../BotonDictado'
+import { juntarTexto } from '../../dictado/voz'
 
 export function PestanaBandeja(): JSX.Element {
   const mensajes = useOficina((e) => e.mensajes) ?? []
@@ -96,9 +98,12 @@ export function PestanaBandeja(): JSX.Element {
           }}
           placeholder="Escribe un mensaje…"
         />
-        <button className="boton boton-primario" disabled={!texto.trim()} onClick={() => void enviar()}>
-          enviar <Icono nombre="enviar" />
-        </button>
+        <div className="redactar-botones">
+          <BotonDictado alTexto={(t) => setTexto((x) => juntarTexto(x, t))} />
+          <button className="boton boton-primario" disabled={!texto.trim()} onClick={() => void enviar()}>
+            enviar <Icono nombre="enviar" />
+          </button>
+        </div>
       </div>
     </div>
   )

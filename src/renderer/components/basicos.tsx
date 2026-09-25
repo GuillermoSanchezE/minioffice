@@ -119,7 +119,8 @@ const RUTAS: Record<string, string> = {
   buscar: 'M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14Zm9 16-4-4',
   copiar: 'M8 8h12v12H8zM4 16V4h12',
   escape: 'M9 5 4 10l5 5M4 10h10a6 6 0 0 1 0 12h-2',
-  recargar: 'M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7'
+  recargar: 'M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7',
+  microfono: 'M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3ZM19 11a7 7 0 0 1-14 0M12 18v3M8 21h8'
 }
 
 export function Icono({ nombre, tamano = 15 }: { nombre: keyof typeof RUTAS | string; tamano?: number }): JSX.Element {

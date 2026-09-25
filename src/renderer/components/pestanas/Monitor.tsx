@@ -5,6 +5,8 @@ import { accion, intentar, useAgentes } from '../../tienda'
 import { seleccionar } from '../../ui'
 import { dinero, tokens } from '../../formato'
 import { Barra, ChipEstado, Retrato } from '../basicos'
+import { BotonDictado } from '../BotonDictado'
+import { juntarTexto } from '../../dictado/voz'
 
 export function PestanaMonitor(): JSX.Element {
   const agentes = useAgentes()
@@ -43,6 +45,7 @@ export function PestanaMonitor(): JSX.Element {
           placeholder="Describe la tarea… (Michael la divide, escribe la tarjeta en el tablero y la asigna)"
         />
         <div className="fila">
+          <BotonDictado alTexto={(t) => setTexto((x) => juntarTexto(x, t))} />
           <button className="boton boton-mostaza" onClick={() => void despachar()} disabled={!texto.trim()}>
             despachar
           </button>

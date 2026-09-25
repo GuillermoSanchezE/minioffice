@@ -6,6 +6,8 @@ import { cambiarUi, seleccionar } from '../../ui'
 import { dinero, tokens } from '../../formato'
 import { Barra, ChipEstado, Icono, Modal, Retrato } from '../basicos'
 import { ChipsSkills } from '../SelectorSkills'
+import { BotonDictado } from '../BotonDictado'
+import { juntarTexto } from '../../dictado/voz'
 
 export function nombreModelo(a: Agente): string {
   if (a.proveedor !== 'claude') return a.modelo ? `${proveedorDe(a.proveedor).nombre} · ${a.modelo}` : proveedorDe(a.proveedor).nombre
@@ -183,6 +185,7 @@ function DialogoPrompt({ agente, onCerrar }: { agente: Agente; onCerrar: () => v
             </button>
           </div>
           <span className="espaciador" />
+          <BotonDictado alTexto={(t) => setTexto((x) => juntarTexto(x, t))} />
           <button className="boton" onClick={onCerrar}>
             cancelar
           </button>

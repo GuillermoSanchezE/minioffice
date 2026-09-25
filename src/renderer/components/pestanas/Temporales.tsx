@@ -4,6 +4,8 @@ import { MODELOS_CLAUDE } from '../../../shared/motores'
 import { accion, avisar, intentar, useOficina } from '../../tienda'
 import { carpeta, duracion, hace } from '../../formato'
 import { Icono, Vacio } from '../basicos'
+import { BotonDictado } from '../BotonDictado'
+import { juntarTexto } from '../../dictado/voz'
 
 const ETIQUETA: Record<Temporal['estado'], string> = {
   corriendo: 'trabajando',
@@ -85,6 +87,7 @@ export function PestanaTemporales(): JSX.Element {
             ))}
           </select>
           <span className="espaciador" />
+          <BotonDictado alTexto={(t) => setPrompt((x) => juntarTexto(x, t))} />
           <button className="boton boton-mostaza" disabled={!prompt.trim() || corriendo >= maximo} onClick={() => void crear()}>
             <Icono nombre="mas" /> contratar temporal
           </button>

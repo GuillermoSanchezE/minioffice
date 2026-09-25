@@ -1,0 +1,49 @@
+name: Prueba del dictado
+
+# Descarga Whisper de verdad y dicta una frase con un micrófono simulado,
+# en desarrollo (Whisper base) y en la app empaquetada (Whisper small).
+on:
+  workflow_dispatch:
+
+jobs:
+  mac:
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Construir la app (y el .app de Apple Silicon)
+        run: npm run build && npx electron-builder --mac dir --arm64 --publish never
+
+      - name: Grabar una frase en español con la voz del sistema
+        run: |
+          VOZ=$(say -v '?' | grep -E 'M[oó]nica|Paulina|Jorge|Juan' | grep -E 'es_(ES|MX)' | head -1 | sed -E 's/[[:space:]]+es_(ES|MX).*//')
+          [ -z "$VOZ" ] && VOZ=$(say -v '?' | grep -E 'es_(ES|MX)' | head -1 | sed -E 's/[[:space:]]+es_(ES|MX).*//')
+          echo "Voz: ${VOZ:-predeterminada}"
+          say ${VOZ:+-v "$VOZ"} -o frase.aiff "Hola Michael. Revisa el formulario de contacto de la página web y corrige los errores."
+          afconvert -f WAVE -d LEI16@16000 -c 1 frase.aiff frase.wav
+          DUR=$(afinfo frase.wav | awk '/estimated duration/ {print $3}')
+          echo "Duración: $DUR s"
+          echo "SEGUNDOS=$(python3 -c "print(round(float('$DUR') + 0.8, 1))")" >> "$GITHUB_ENV"
+
+      - name: Dictar en desarrollo (Whisper base)
+        run: node pruebas/dictado.cjs frase.wav "$SEGUNDOS" base "" capturas-dictado
+
+      - name: Dictar en la app empaquetada (Whisper small)
+        run: node pruebas/dictado.cjs frase.wav "$SEGUNDOS" small dist/mac-arm64/minioffice.app/Contents/MacOS/minioffice capturas-dictado
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: capturas-dictado
+          path: |
+            capturas-dictado
+            frase.wav
+          retention-days: 14

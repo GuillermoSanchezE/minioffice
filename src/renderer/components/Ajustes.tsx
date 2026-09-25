@@ -1,7 +1,10 @@
+import { useEffect } from 'react'
 import type { Ajustes as TipoAjustes } from '../../shared/types'
 import { MODOS_PERMISOS } from '../../shared/motores'
-import { accion, intentar, useOficina } from '../tienda'
+import { IDIOMAS_DICTADO, MODELOS_DICTADO, type InfoModeloDictado } from '../../shared/dictado'
+import { accion, avisar, intentar, useOficina } from '../tienda'
 import { cambiarUi, useUi } from '../ui'
+import { borrarModelo, explicarError, guardarAjustesDictado, leerAjustesDictado, prepararModelo, useVoz } from '../dictado/voz'
 import { Modal, Vacio } from './basicos'
 
 export function Ajustes(): JSX.Element {
@@ -65,6 +68,8 @@ export function Ajustes(): JSX.Element {
             />
           </div>
 
+          <SeccionDictado />
+
           <span className="etiqueta-campo">Apariencia</span>
           <div className="segmentado">
             <button className={tema === 'claro' ? 'activo' : ''} onClick={() => cambiarUi({ tema: 'claro' })}>
@@ -91,5 +96,85 @@ export function Ajustes(): JSX.Element {
         </div>
       )}
     </Modal>
+  )
+}
+
+function EstadoModelo({ modelo }: { modelo: InfoModeloDictado }): JSX.Element {
+  const a = useVoz((e) => e.ajustes)
+  const carga = useVoz((e) => (e.carga?.modelo === modelo.id ? e.carga : null))
+  if (carga) {
+    const pct = carga.total ? Math.round((carga.cargado / carga.total) * 100) : 0
+    return <span className="pequeno"> · descargando {pct}%</span>
+  }
+  const bytes = a?.guardados[modelo.id] ?? 0
+  const mb = `${Math.max(1, Math.round(bytes / 1e6))} MB`
+  if (a?.listos.includes(modelo.id)) return <span className="pequeno"> · descargado ({mb})</span>
+  if (bytes > 0) return <span className="pequeno"> · a medias ({mb})</span>
+  return <span className="suave pequeno"> · sin descargar</span>
+}
+
+function SeccionDictado(): JSX.Element {
+  const a = useVoz((e) => e.ajustes)
+  const cargando = useVoz((e) => e.carga?.modelo ?? null)
+  useEffect(() => {
+    void leerAjustesDictado()
+  }, [])
+  if (!a) return <span className="etiqueta-campo">Dictado por voz</span>
+
+  const falta = !a.listos.includes(a.modelo) && cargando !== a.modelo
+  return (
+    <>
+      <span className="etiqueta-campo">Dictado por voz</span>
+      <p className="suave pequeno">
+        Pulsa el micrófono junto a cualquier mensaje, habla y vuelve a pulsar. Whisper corre en tu equipo: tu voz no sale de él y funciona sin
+        internet una vez descargado.
+      </p>
+      {Object.values(MODELOS_DICTADO).map((m) => (
+        <label key={m.id} className="opcion-radio">
+          <input type="radio" name="modelo-dictado" checked={a.modelo === m.id} onChange={() => void guardarAjustesDictado({ modelo: m.id })} />
+          <span className="crece">
+            <strong>{m.nombre}</strong>
+            <span className="suave pequeno">
+              {' '}
+              — ≈{m.megas} MB. {m.descripcion}
+            </span>
+            <EstadoModelo modelo={m} />
+          </span>
+          {a.guardados[m.id] > 0 && cargando !== m.id && (
+            <button className="boton-mini" onClick={() => void borrarModelo(m.id)} title="Libera el espacio; se vuelve a descargar si lo usas">
+              borrar
+            </button>
+          )}
+        </label>
+      ))}
+      <div className="fila">
+        <span>Idioma</span>
+        <div className="segmentado">
+          {IDIOMAS_DICTADO.map((i) => (
+            <button key={i.id} className={a.idioma === i.id ? 'activo' : ''} onClick={() => void guardarAjustesDictado({ idioma: i.id })}>
+              {i.nombre}
+            </button>
+          ))}
+        </div>
+        <span className="espaciador" />
+        {falta && (
+          <button
+            className="boton"
+            onClick={() =>
+              void prepararModelo(a.modelo).then(
+                () => avisar('Dictado listo: pulsa el micrófono junto a cualquier mensaje.'),
+                (err: Error) => avisar(`No se pudo descargar Whisper: ${explicarError(err)}`, 'error')
+              )
+            }
+          >
+            descargar ahora
+          </button>
+        )}
+      </div>
+      <p className="suave pequeno">Con «Español» acierta más que detectando el idioma solo. Los modelos se guardan en:</p>
+      <p className="mono pequeno recorte" title={a.carpeta}>
+        {a.carpeta}
+      </p>
+    </>
   )
 }

@@ -2,6 +2,8 @@ import { useState } from 'react'
 import type { ComandoGuardado } from '../../../shared/types'
 import { accion, avisar, intentar, useAgentes, useOficina } from '../../tienda'
 import { Icono, Modal } from '../basicos'
+import { BotonDictado } from '../BotonDictado'
+import { juntarTexto } from '../../dictado/voz'
 
 const RAPIDOS: Array<{ texto: string; detalle: string }> = [
   { texto: '/compact', detalle: 'resume la conversación y libera contexto' },
@@ -76,6 +78,7 @@ export function PestanaComandos(): JSX.Element {
           </div>
           <span className="suave pequeno">{modo === 'cola' ? 'llega cuando cada uno quede libre' : 'se escribe ya, aunque estén a mitad de algo'}</span>
           <span className="espaciador" />
+          <BotonDictado alTexto={(t) => setTexto((x) => juntarTexto(x, t))} />
           <button className="boton boton-mostaza" disabled={!texto.trim()} onClick={() => void difundir(texto).then(() => setTexto(''))}>
             difundir <Icono nombre="enviar" />
           </button>
