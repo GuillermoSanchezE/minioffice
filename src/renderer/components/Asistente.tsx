@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { AgentDefinition, ProveedorId } from '../../shared/types'
-import { MODELOS_CLAUDE, PROVEEDORES, comandoBase, partirComando, proveedorDe, unirComando } from '../../shared/motores'
+import { MODELOS_CLAUDE, comandoBase, motoresVisibles, partirComando, proveedorDe, unirComando } from '../../shared/motores'
 import { REPARTO, ID_MICHAEL } from '../../shared/reparto'
 import { PUESTOS, puestoDe } from '../../shared/skills'
 import { accion, avisar, intentar, useAgentes, useOficina } from '../tienda'
@@ -8,6 +8,7 @@ import { cambiarUi, seleccionar } from '../ui'
 import { carpeta } from '../formato'
 import { Icono, Modal, Retrato } from './basicos'
 import { ChipsSkills, SelectorSkills } from './SelectorSkills'
+import { SelectorConversacion } from './SelectorConversacion'
 
 const COLORES = ['#d9534f', '#4f9d69', '#3c8a99', '#d9a441', '#8a6fd1', '#d98a5c']
 const PASOS = ['Identidad', 'Espacio', 'Motor', 'Skills', 'Encargo'] as const
@@ -38,10 +39,13 @@ function nuevoAgente(raiz: string, ocupados: string[]): AgentDefinition {
   }
 }
 
+const SIN_MOTORES: ProveedorId[] = []
+
 export function Asistente({ inicial }: { inicial: AgentDefinition | 'nuevo' }): JSX.Element {
   const agentes = useAgentes()
   const raiz = useOficina((e) => e.raiz) ?? ''
   const modo = useOficina((e) => e.ajustes.modoPermisos) ?? 'auto'
+  const motoresActivos = useOficina((e) => e.ajustes.motores) ?? SIN_MOTORES
   const esNuevo = inicial === 'nuevo'
   const [a, setA] = useState<AgentDefinition>(() =>
     inicial === 'nuevo' ? nuevoAgente(raiz, agentes.map((x) => x.id)) : { ...inicial, args: [...inicial.args] }
@@ -309,12 +313,11 @@ export function Asistente({ inicial }: { inicial: AgentDefinition | 'nuevo' }): 
               </div>
               <label className="casilla">
                 <input type="checkbox" checked={!!a.aislamientoGit} onChange={(e) => cambiar({ aislamientoGit: e.target.checked })} />
-                Trabajar en su propio worktree de git (rama <code>minioffice/{a.id || 'id'}</code>) para no pisar a los demás
+                <span>
+                  Trabajar en su propio worktree de git (rama <code>minioffice/{a.id || 'id'}</code>) para no pisar a los demás
+                </span>
               </label>
-              <label>
-                Retomar una sesión de Claude Code (opcional)
-                <input className="mono" value={a.reanudar ?? ''} onChange={(e) => cambiar({ reanudar: e.target.value.trim() || undefined })} placeholder="id de sesión" />
-              </label>
+              <SelectorConversacion cwd={a.cwd} valor={a.reanudar} agenteId={esNuevo ? undefined : a.id} alCambiar={(id) => cambiar({ reanudar: id })} />
               <p className="suave pequeno">Varios agentes pueden compartir carpeta. Con worktree, cada uno trabaja en su rama y tú decides qué se une.</p>
             </>
           )}
@@ -323,12 +326,15 @@ export function Asistente({ inicial }: { inicial: AgentDefinition | 'nuevo' }): 
             <>
               <span className="etiqueta-campo">Motor</span>
               <div className="chips">
-                {PROVEEDORES.map((p) => (
+                {motoresVisibles(motoresActivos, a.proveedor).map((p) => (
                   <button key={p.id} className={`chip ${a.proveedor === p.id ? 'activo' : ''}`} onClick={() => cambiar({ proveedor: p.id as ProveedorId, modelo: '' })}>
                     {p.nombre}
                   </button>
                 ))}
               </div>
+              {motoresActivos.length === 0 && (
+                <p className="suave pequeno">¿Quieres que trabaje con ChatGPT, Gemini u otra IA? Agrégala en Ajustes → Motores de IA.</p>
+              )}
               {!proveedorDe(a.proveedor).integracionCompleta && (
                 <p className="alerta pequeno">
                   Con este motor minioffice no puede leer su transcripción: verás su terminal y le llegarán mensajes, pero no sabrá sus tokens ni qué
@@ -365,7 +371,7 @@ export function Asistente({ inicial }: { inicial: AgentDefinition | 'nuevo' }): 
               <pre className="codigo">{vistaComando || '—'}</pre>
               {proveedorDe(a.proveedor).instalar && (
                 <p className="suave pequeno">
-                  ¿No lo tienes? <code>npm install -g {proveedorDe(a.proveedor).instalar}</code> o instálalo desde Capacidades.
+                  ¿No lo tienes? <code>npm install -g {proveedorDe(a.proveedor).instalar}</code> o instálalo desde Ajustes → Motores de IA.
                 </p>
               )}
             </>

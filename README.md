@@ -39,7 +39,7 @@ descanso, Jim frente a Dwight, Phyllis frente a Stanley, contabilidad, cocina y 
 | actividad     | Registro de todo lo que pasa en la oficina                                                 |
 | comandos      | Iniciar/detener a todos, difundir un mensaje, comandos guardados, `/compact` a todos       |
 | temporales    | Ayudantes de una sola tarea (`claude -p`) que se van cuando terminan                       |
-| capacidades   | Skills por agente (con explicación en español), servidores MCP, motores y "quién tiene qué" |
+| capacidades   | Skills por agente (con explicación en español), servidores MCP y "quién tiene qué"          |
 | equipo        | Todos los agentes en tarjetas con resumen del jefe (gasto, frenos, tareas, preguntas)      |
 | grapadora     | La criatura flotante: cara, forma, expresión, tamaño, color, opacidad, acciones, capturas  |
 
@@ -47,8 +47,9 @@ descanso, Jim frente a Dwight, Phyllis frente a Stanley, contabilidad, cocina y 
 detener; guiarlo al momento; terminal, git (rama, cambios, commits), sus mensajes y sus trazas
 (cada herramienta que usó, leída de la transcripción de Claude Code).
 
-**Contratar**: asistente de 4 pasos (identidad y aspecto, carpeta y worktree de git, motor y
-modelo, encargo y límite). También importar/exportar el agente como JSON o **generarlo con IA**.
+**Contratar**: asistente de 5 pasos (identidad y aspecto; carpeta, worktree de git y conversación
+de Claude Code a retomar; motor y modelo; skills; encargo y límite). También importar/exportar el
+agente como JSON o **generarlo con IA**.
 
 **Vista completa** (botón *Completa*): barra lateral con secciones y agentes agrupados por
 proyecto. **Tema crema** como el original, o noche.
@@ -57,10 +58,20 @@ proyecto. **Tema crema** como el original, o noche.
 pantalla (y mandársela a Michael), pedirle algo a Michael sin abrir la oficina, ver preguntas,
 abrir la oficina, ocultarla. Se arrastra a donde quieras.
 
-**Motores**: Claude Code tiene integración completa (instrucciones por system prompt, estado y
-tokens leídos de su transcripción). Codex, Gemini CLI, Grok, Kimi, Qwen, OpenCode, Crush, Pi,
-Copilot o un comando propio funcionan como terminal y reciben las instrucciones como primer
-mensaje.
+**Motores de IA**: todos los agentes trabajan con **Claude Code**, que tiene integración completa
+(instrucciones por system prompt, estado y tokens leídos de su transcripción, skills). Si quieres
+que alguno use otra IA, agrégala en **Ajustes → Motores de IA**: ChatGPT (Codex), Gemini CLI,
+Grok, Kimi, Qwen, OpenCode, Crush, Pi, Copilot o un comando propio. Desde ahí se ve si está
+instalada y se instala con un clic; después aparece al contratar o editar agentes y en monitor.
+Esas IA funcionan como terminal y reciben las instrucciones como primer mensaje. La elección es de
+tu Mac, no del proyecto.
+
+**Tus proyectos de Claude Code**: el nombre del proyecto en la barra de título (o **Ajustes →
+Abrir otro proyecto…**) abre la lista de carpetas donde ya trabajaste con Claude Code, leída de
+`~/.claude/projects`, con cuántas conversaciones tiene y cuándo fue la última. Al abrir uno, la
+oficina trabaja ahí con todo lo que ya hay. Para que un agente **siga una conversación anterior**,
+edítalo → paso *Espacio* → elige la conversación de la lista (título, fecha y rama); al guardar,
+retoma esa conversación con todo su contexto.
 
 **Permisos**: *Manual*, *Auto* (Claude Code aprueba lo seguro, por defecto), *Aceptar ediciones*
 o *Sin permisos*. Se cambia desde el botón **auto** del centro de mando.
@@ -79,8 +90,8 @@ La primera vez que la abras:
 1. Arrastra minioffice a Aplicaciones y ábrela. Como no está firmada con un certificado de
    desarrollador de Apple, macOS la bloquea: ve a **Ajustes del Sistema → Privacidad y seguridad**
    y pulsa **Abrir igualmente** (o en la Terminal: `xattr -dr com.apple.quarantine /Applications/minioffice.app`).
-2. Elige la carpeta del proyecto donde trabajará la oficina. Se recuerda; para cambiarla:
-   **Ajustes → Abrir otro proyecto…**.
+2. Elige la carpeta del proyecto donde trabajará la oficina. Se recuerda; para cambiarla, pulsa
+   el nombre del proyecto en la barra de título: ahí están tus proyectos de Claude Code.
 3. Necesitas [Claude Code](https://docs.claude.com/en/docs/claude-code) instalado y con tu sesión
    iniciada (que `claude` funcione en la Terminal) y git. minioffice toma el PATH de tu Terminal, así
    que los encuentra aunque la abras desde el Dock.
@@ -259,6 +270,8 @@ src/
 │   ├── skills.ts         biblioteca de skills y plugin de cada agente
 │   ├── consumo.ts        tokens por hora y uso del plan
 │   ├── entorno.ts        carpeta del proyecto y PATH de la app instalada
+│   ├── claudeProyectos.ts tus proyectos y conversaciones de Claude Code (~/.claude/projects)
+│   ├── preferencias.ts   preferencias de tu Mac (motores de IA agregados)
 │   ├── dictado.ts        modelos de Whisper (modelos://, caché en disco) y permiso del micrófono
 │   └── grapadora.ts      ventana flotante y capturas
 ├── preload/              API segura para la ventana (window.minioffice)

@@ -5,8 +5,10 @@ import type {
   Ajustes,
   EstadoGit,
   HiveMessage,
+  ConversacionClaude,
   HoraConsumo,
   ProveedorId,
+  ProyectoClaude,
   Tarea,
   Temporal,
   Traza
@@ -134,7 +136,11 @@ export type Accion =
   | { tipo: 'grapadora:menu'; abierto: boolean }
   | { tipo: 'ventana:enfocar'; pestana?: string }
   | { tipo: 'proyecto:cambiar' }
+  | { tipo: 'proyecto:abrir'; ruta: string }
+  | { tipo: 'claude:proyectos' }
+  | { tipo: 'claude:conversaciones'; cwd: string }
   | { tipo: 'webhook:info' }
+  | { tipo: 'motores:instalados' }
   | { tipo: 'dictado:estado' }
   | { tipo: 'dictado:ajustes'; ajustes: Partial<AjustesDictado> }
   | { tipo: 'dictado:borrar'; modelo: ModeloDictado }
@@ -191,6 +197,9 @@ export interface RespuestaDe {
   'grapadora:capturas': Captura[]
   'grapadora:leerAjustes': AjustesGrapadora
   'webhook:info': InfoWebhook
+  'motores:instalados': ProveedorId[]
+  'claude:proyectos': ProyectoClaude[]
+  'claude:conversaciones': ConversacionClaude[]
   'dictado:estado': EstadoDictado
   'dictado:ajustes': EstadoDictado
   'dictado:borrar': EstadoDictado

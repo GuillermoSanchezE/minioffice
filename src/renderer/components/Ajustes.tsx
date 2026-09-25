@@ -1,6 +1,6 @@
-import { useEffect } from 'react'
-import type { Ajustes as TipoAjustes } from '../../shared/types'
-import { MODOS_PERMISOS } from '../../shared/motores'
+import { useEffect, useState } from 'react'
+import type { Ajustes as TipoAjustes, ProveedorId } from '../../shared/types'
+import { MODOS_PERMISOS, MOTOR_PRINCIPAL, PROVEEDORES, proveedorDe, type Proveedor } from '../../shared/motores'
 import { IDIOMAS_DICTADO, MODELOS_DICTADO, type InfoModeloDictado } from '../../shared/dictado'
 import { accion, avisar, intentar, useOficina } from '../tienda'
 import { cambiarUi, useUi } from '../ui'
@@ -42,6 +42,8 @@ export function Ajustes(): JSX.Element {
             placeholder="Esta oficina desarrolla software y páginas web."
           />
           <p className="suave pequeno">Todos los agentes lo leen al iniciar su sesión.</p>
+
+          <SeccionMotores activos={ajustes.motores ?? []} guardar={guardar} />
 
           <span className="etiqueta-campo">Oficina</span>
           <label className="casilla">
@@ -85,7 +87,7 @@ export function Ajustes(): JSX.Element {
             <p className="mono pequeno crece recorte" title={raiz}>
               {raiz}
             </p>
-            <button className="boton" onClick={() => void accion({ tipo: 'proyecto:cambiar' })}>
+            <button className="boton" onClick={() => cambiarUi({ ajustesAbiertos: false, proyectosAbierto: true })}>
               Abrir otro proyecto…
             </button>
           </div>
@@ -175,6 +177,87 @@ function SeccionDictado(): JSX.Element {
       <p className="mono pequeno recorte" title={a.carpeta}>
         {a.carpeta}
       </p>
+    </>
+  )
+}
+
+function SeccionMotores({ activos, guardar }: { activos: ProveedorId[]; guardar: (c: Partial<TipoAjustes>) => void }): JSX.Element {
+  const [instalados, setInstalados] = useState<ProveedorId[] | null>(null)
+  const [instalando, setInstalando] = useState<ProveedorId | null>(null)
+  const [abierto, setAbierto] = useState(activos.length > 0)
+  const recargar = (): void => {
+    void accion({ tipo: 'motores:instalados' }).then((l) => l && setInstalados(l))
+  }
+  useEffect(recargar, [])
+
+  const principal = proveedorDe(MOTOR_PRINCIPAL)
+  const otros = PROVEEDORES.filter((p) => p.id !== MOTOR_PRINCIPAL)
+  const alternar = (id: ProveedorId): void =>
+    guardar({ motores: activos.includes(id) ? activos.filter((x) => x !== id) : [...activos, id] })
+
+  async function instalar(p: Proveedor): Promise<void> {
+    setInstalando(p.id)
+    const r = await accion({ tipo: 'capacidades:instalar', nombre: p.binario, tipoCapacidad: 'motor' })
+    setInstalando(null)
+    if (r !== undefined) {
+      avisar(`${p.nombre} instalado. ${p.acceso ?? ''}`)
+      recargar()
+    }
+  }
+
+  const estado = (p: Proveedor): JSX.Element | null => {
+    if (!instalados || p.id === 'personalizado') return null
+    return instalados.includes(p.id) ? <span className="pequeno"> · instalado</span> : <span className="pequeno alerta-texto"> · no está instalado</span>
+  }
+
+  return (
+    <>
+      <span className="etiqueta-campo">Motores de IA</span>
+      <div className="opcion-motor">
+        <span className="crece">
+          <strong>{principal.nombre}</strong> <span className="insignia-jefe">principal</span>
+          {estado(principal)}
+          <span className="suave pequeno"> — {principal.descripcion}</span>
+          {instalados && !instalados.includes(principal.id) && <span className="suave pequeno"> {principal.acceso}</span>}
+        </span>
+      </div>
+      <p className="suave pequeno">
+        Todos los agentes trabajan con Claude Code. Si quieres que alguno use otra IA, agrégala aquí: aparecerá al contratar o editar agentes y en
+        monitor.
+      </p>
+      <div className="fila">
+        <button className="boton" onClick={() => setAbierto((v) => !v)}>
+          {abierto ? 'ocultar otras IA' : '+ agregar otra IA (ChatGPT, Gemini…)'}
+        </button>
+        {activos.length > 0 && <span className="suave pequeno">agregadas: {activos.map((id) => proveedorDe(id).nombre).join(', ')}</span>}
+      </div>
+      {abierto && (
+        <>
+          {otros.map((p) => {
+            const activo = activos.includes(p.id)
+            return (
+              <label key={p.id} className="opcion-motor">
+                <input type="checkbox" checked={activo} onChange={() => alternar(p.id)} />
+                <span className="crece">
+                  <strong>{p.nombre}</strong>
+                  {activo && estado(p)}
+                  <span className="suave pequeno"> — {p.descripcion}</span>
+                  {activo && p.acceso && <span className="suave pequeno"> {p.acceso}</span>}
+                </span>
+                {activo && p.instalar && instalados && !instalados.includes(p.id) && (
+                  <button className="boton-mini" disabled={instalando !== null} onClick={() => void instalar(p)} title={`npm install -g ${p.instalar}`}>
+                    {instalando === p.id ? 'instalando…' : 'instalar'}
+                  </button>
+                )}
+              </label>
+            )
+          })}
+          <p className="alerta pequeno">
+            Con otras IA, minioffice ve su terminal y les entrega mensajes, pero no puede leer sus tokens ni qué herramienta usan, y no les carga
+            skills. Cada una se paga con su propia cuenta.
+          </p>
+        </>
+      )}
     </>
   )
 }

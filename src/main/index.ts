@@ -1,14 +1,16 @@
 import { app, BrowserWindow, dialog, screen } from 'electron'
+import { existsSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { IPC } from '../shared/ipc-channels'
 import type { Accion } from '../shared/acciones'
 import { ID_MICHAEL } from '../shared/reparto'
 import { Oficina } from './oficina'
 import { registrarIpc } from './ipc'
-import { Capacidades } from './capacidades'
+import { Capacidades, motoresInstalados } from './capacidades'
 import { Grapadora } from './grapadora'
 import { carpetaDelProyecto, heredarPathDeLaShell, pedirCarpeta, reabrirEn, recordarProyecto } from './entorno'
 import { Dictado, registrarEsquemaModelos } from './dictado'
+import { listarConversaciones, listarProyectosClaude } from './claudeProyectos'
 
 // Dictado: los modelos de Whisper llegan por modelos:// y usan varios hilos (SharedArrayBuffer).
 registrarEsquemaModelos()
@@ -81,6 +83,8 @@ async function ejecutarExtra(a: Accion): Promise<unknown> {
       return grapadora.menu(a.abierto)
     case 'ventana:enfocar':
       return enfocar(a.pestana)
+    case 'motores:instalados':
+      return motoresInstalados()
     case 'dictado:estado':
       return dictado.estado()
     case 'dictado:ajustes':
@@ -93,6 +97,15 @@ async function ejecutarExtra(a: Accion): Promise<unknown> {
       return dictado.permiso()
     case 'dictado:privacidad':
       return dictado.abrirPrivacidad()
+    case 'claude:proyectos':
+      return listarProyectosClaude()
+    case 'claude:conversaciones':
+      return listarConversaciones(a.cwd)
+    case 'proyecto:abrir': {
+      if (!existsSync(a.ruta) || !statSync(a.ruta).isDirectory()) throw new Error('Esa carpeta ya no existe.')
+      if (a.ruta !== oficina.raiz) reabrirEn(a.ruta)
+      return
+    }
     case 'proyecto:cambiar': {
       const ruta = await pedirCarpeta('Abrir otro proyecto', oficina.raiz)
       if (ruta && ruta !== oficina.raiz) reabrirEn(ruta)

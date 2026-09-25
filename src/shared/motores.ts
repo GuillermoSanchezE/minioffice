@@ -34,6 +34,10 @@ export interface Proveedor {
   argsPermisos?: Partial<Record<ModoPermisos, string[]>>
   /** Solo Claude Code recibe instrucciones por system prompt y se sigue por su transcripcion. */
   integracionCompleta: boolean
+  /** Que es, en una frase. */
+  descripcion?: string
+  /** Como se inicia sesion la primera vez. */
+  acceso?: string
 }
 
 export const PROVEEDORES: Proveedor[] = [
@@ -48,16 +52,20 @@ export const PROVEEDORES: Proveedor[] = [
       ediciones: ['--permission-mode', 'acceptEdits'],
       total: ['--permission-mode', 'bypassPermissions']
     },
-    integracionCompleta: true
+    integracionCompleta: true,
+    descripcion: 'La IA de Anthropic y el motor de minioffice: sigue su trabajo, sus tokens y le carga skills.',
+    acceso: 'Abre la Terminal, escribe claude e inicia sesión una vez.'
   },
   {
     id: 'codex',
-    nombre: 'Codex · GPT',
+    nombre: 'ChatGPT · Codex',
     binario: 'codex',
     instalar: '@openai/codex',
     argsModelo: (m) => ['--model', m],
     argsPermisos: { auto: ['--full-auto'], ediciones: ['--full-auto'], total: ['--dangerously-bypass-approvals-and-sandbox'] },
-    integracionCompleta: false
+    integracionCompleta: false,
+    descripcion: 'El agente de programación de OpenAI; funciona con tu cuenta de ChatGPT o una clave de API.',
+    acceso: 'En la Terminal escribe codex y entra con tu cuenta de ChatGPT.'
   },
   {
     id: 'gemini',
@@ -66,10 +74,27 @@ export const PROVEEDORES: Proveedor[] = [
     instalar: '@google/gemini-cli',
     argsModelo: (m) => ['--model', m],
     argsPermisos: { auto: ['--yolo'], total: ['--yolo'] },
-    integracionCompleta: false
+    integracionCompleta: false,
+    descripcion: 'El agente de Google; se usa con tu cuenta de Google.',
+    acceso: 'En la Terminal escribe gemini y entra con tu cuenta de Google.'
   },
-  { id: 'grok', nombre: 'Grok · xAI', binario: 'grok', argsModelo: (m) => ['--model', m], integracionCompleta: false },
-  { id: 'kimi', nombre: 'Kimi Code', binario: 'kimi', integracionCompleta: false },
+  {
+    id: 'grok',
+    nombre: 'Grok · xAI',
+    binario: 'grok',
+    argsModelo: (m) => ['--model', m],
+    integracionCompleta: false,
+    descripcion: 'El agente de xAI.',
+    acceso: 'Instálalo siguiendo las instrucciones de xAI y ábrelo una vez con grok.'
+  },
+  {
+    id: 'kimi',
+    nombre: 'Kimi Code',
+    binario: 'kimi',
+    integracionCompleta: false,
+    descripcion: 'El agente de Moonshot AI.',
+    acceso: 'Instálalo desde la web de Kimi y ábrelo una vez con kimi.'
+  },
   {
     id: 'qwen',
     nombre: 'Qwen Code',
@@ -77,11 +102,38 @@ export const PROVEEDORES: Proveedor[] = [
     instalar: '@qwen-code/qwen-code',
     argsModelo: (m) => ['--model', m],
     argsPermisos: { auto: ['--yolo'], total: ['--yolo'] },
-    integracionCompleta: false
+    integracionCompleta: false,
+    descripcion: 'El agente de Alibaba para los modelos Qwen.',
+    acceso: 'En la Terminal escribe qwen e inicia sesión.'
   },
-  { id: 'opencode', nombre: 'OpenCode', binario: 'opencode', instalar: 'opencode-ai', argsModelo: (m) => ['--model', m], integracionCompleta: false },
-  { id: 'crush', nombre: 'Crush · Charm', binario: 'crush', argsPermisos: { total: ['--yolo'] }, integracionCompleta: false },
-  { id: 'pi', nombre: 'Pi', binario: 'pi', argsModelo: (m) => ['--model', m], integracionCompleta: false },
+  {
+    id: 'opencode',
+    nombre: 'OpenCode',
+    binario: 'opencode',
+    instalar: 'opencode-ai',
+    argsModelo: (m) => ['--model', m],
+    integracionCompleta: false,
+    descripcion: 'Agente abierto que funciona con muchos proveedores de modelos.',
+    acceso: 'En la Terminal escribe opencode auth login y elige tu proveedor.'
+  },
+  {
+    id: 'crush',
+    nombre: 'Crush · Charm',
+    binario: 'crush',
+    argsPermisos: { total: ['--yolo'] },
+    integracionCompleta: false,
+    descripcion: 'Agente de terminal de Charm, con varios proveedores de modelos.',
+    acceso: 'Instálalo desde la web de Charm y configura tu proveedor al abrirlo.'
+  },
+  {
+    id: 'pi',
+    nombre: 'Pi',
+    binario: 'pi',
+    argsModelo: (m) => ['--model', m],
+    integracionCompleta: false,
+    descripcion: 'Agente de terminal minimalista, con varios proveedores de modelos.',
+    acceso: 'Instálalo desde su web y configura tu proveedor al abrirlo.'
+  },
   {
     id: 'copilot',
     nombre: 'Copilot',
@@ -89,10 +141,26 @@ export const PROVEEDORES: Proveedor[] = [
     instalar: '@github/copilot',
     argsModelo: (m) => ['--model', m],
     argsPermisos: { auto: ['--allow-all-tools'], total: ['--allow-all-tools'] },
-    integracionCompleta: false
+    integracionCompleta: false,
+    descripcion: 'El agente de GitHub; necesitas una suscripción de Copilot.',
+    acceso: 'En la Terminal escribe copilot y usa /login con tu cuenta de GitHub.'
   },
-  { id: 'personalizado', nombre: 'Personalizado', binario: '', integracionCompleta: false }
+  {
+    id: 'personalizado',
+    nombre: 'Otra (comando propio)',
+    binario: '',
+    integracionCompleta: false,
+    descripcion: 'Cualquier otra CLI: escribes su comando en el asistente al contratar.'
+  }
 ]
+
+/** El motor de minioffice; los demás se agregan en Ajustes → Motores de IA. */
+export const MOTOR_PRINCIPAL: ProveedorId = 'claude'
+
+/** Los motores que se ofrecen: Claude Code, los que agregaste y el que ya use el agente. */
+export function motoresVisibles(activos: readonly ProveedorId[] | undefined, actual?: ProveedorId): Proveedor[] {
+  return PROVEEDORES.filter((p) => p.id === MOTOR_PRINCIPAL || activos?.includes(p.id) || p.id === actual)
+}
 
 export function proveedorDe(id: ProveedorId): Proveedor {
   return PROVEEDORES.find((p) => p.id === id) ?? PROVEEDORES[0]

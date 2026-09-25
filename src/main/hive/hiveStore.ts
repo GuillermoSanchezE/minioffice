@@ -75,7 +75,8 @@ export const AJUSTES_POR_DEFECTO: Ajustes = {
   webhookRed: false,
   companeros: [],
   maxTemporales: 4,
-  enfoque: 'Esta oficina desarrolla software y páginas web.'
+  enfoque: 'Esta oficina desarrolla software y páginas web.',
+  motores: []
 }
 
 function leerJson<T>(ruta: string): T | null {

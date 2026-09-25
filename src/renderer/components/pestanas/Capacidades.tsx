@@ -22,7 +22,7 @@ export function PestanaCapacidades(): JSX.Element {
     <div className="pestana-contenido capacidades">
       <div className="barra-herramientas">
         <strong className="pixel">Capacidades</strong>
-        <span className="suave pequeno">qué sabe hacer cada agente: skills, servidores MCP y motores</span>
+        <span className="suave pequeno">qué sabe hacer cada agente: skills y servidores MCP</span>
       </div>
       <div className="subpestanas horizontales">
         <button className={vista === 'agentes' ? 'activa' : ''} onClick={() => setVista('agentes')}>
@@ -32,7 +32,7 @@ export function PestanaCapacidades(): JSX.Element {
           Catálogo de skills
         </button>
         <button className={vista === 'herramientas' ? 'activa' : ''} onClick={() => setVista('herramientas')}>
-          MCP y motores
+          Servidores MCP
         </button>
         <button className={vista === 'quien' ? 'activa' : ''} onClick={() => setVista('quien')}>
           Quién tiene qué
@@ -273,7 +273,7 @@ function CatalogoSkills(): JSX.Element {
   )
 }
 
-// ---------------------------------------------------------- MCP y motores
+// ---------------------------------------------------------- servidores MCP
 
 const NOMBRE_TIPO: Record<CatalogoItem['tipo'], string> = { skill: 'skill', mcp: 'MCP', motor: 'motor' }
 
@@ -283,8 +283,9 @@ function McpYMotores(): JSX.Element {
   const [instalando, setInstalando] = useState<string | null>(null)
 
   const recargar = (): void => {
-    void accion({ tipo: 'capacidades:catalogo' }).then((c) => setCatalogo((c ?? []).filter((x) => x.tipo !== 'skill')))
-    void accion({ tipo: 'capacidades:listar' }).then((c) => setInstaladas((c ?? []).filter((x) => x.tipo !== 'skill')))
+    // Los motores (otras IA) se agregan en Ajustes → Motores de IA.
+    void accion({ tipo: 'capacidades:catalogo' }).then((c) => setCatalogo((c ?? []).filter((x) => x.tipo === 'mcp')))
+    void accion({ tipo: 'capacidades:listar' }).then((c) => setInstaladas((c ?? []).filter((x) => x.tipo === 'mcp')))
   }
   useEffect(recargar, [])
 
@@ -301,9 +302,13 @@ function McpYMotores(): JSX.Element {
     <>
       <p className="suave">
         Los servidores MCP conectan a los agentes con herramientas externas (un navegador, documentación, Notion…). Se registran para tu usuario
-        con <code>claude mcp add</code>. Los motores son otras CLIs que pueden mover a un agente.
+        con <code>claude mcp add</code>. Para que un agente trabaje con otra IA (ChatGPT, Gemini…), agrégala en{' '}
+        <button className="enlace" onClick={() => cambiarUi({ ajustesAbiertos: true })}>
+          Ajustes → Motores de IA
+        </button>
+        .
       </p>
-      {(['mcp', 'motor'] as const).map((tipo) => (
+      {(['mcp'] as const).map((tipo) => (
         <section key={tipo}>
           <h3 className="titulo-categoria">{tipo === 'mcp' ? 'Servidores MCP' : 'Motores'}</h3>
           <div className="rejilla-catalogo">

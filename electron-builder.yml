@@ -32,9 +32,22 @@ mac:
     NSMicrophoneUsageDescription: minioffice usa el micrófono para que dictes mensajes a tus agentes.
     NSScreenCaptureUsageDescription: La grapadora captura la pantalla cuando se lo pides.
 
+# Ventana del instalador: fondo crema con la flecha hacia Aplicaciones (build/background.png y @2x).
 dmg:
   title: minioffice
   artifactName: minioffice-${version}-${arch}.dmg
+  background: build/background.png
+  iconSize: 110
+  window:
+    width: 660
+    height: 400
+  contents:
+    - x: 180
+      y: 190
+    - x: 480
+      y: 190
+      type: link
+      path: /Applications
 
 linux:
   target: dir

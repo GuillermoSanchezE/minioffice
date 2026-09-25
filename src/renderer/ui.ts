@@ -30,6 +30,8 @@ export interface EstadoUi {
   /** Agente en edicion, 'nuevo' para contratar o null si el asistente esta cerrado. */
   asistente: AgentDefinition | 'nuevo' | null
   ajustesAbiertos: boolean
+  /** Selector de proyectos de Claude Code abierto. */
+  proyectosAbierto: boolean
   /** Agente a abrir en Capacidades → Skills por agente. */
   skillsDe: string | null
 }
@@ -60,6 +62,7 @@ let estado: EstadoUi = {
   anchoPanel: leer('anchoPanel', 560),
   asistente: null,
   ajustesAbiertos: false,
+  proyectosAbierto: false,
   skillsDe: null
 }
 

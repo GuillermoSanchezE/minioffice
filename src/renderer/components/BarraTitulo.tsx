@@ -1,3 +1,4 @@
+import { carpeta } from '../formato'
 import { MODOS_PERMISOS } from '../../shared/motores'
 import { useAgentes, useOficina } from '../tienda'
 import { cambiarUi, useUi } from '../ui'
@@ -6,6 +7,7 @@ import { IndicadorPlan } from './pestanas/Consumo'
 
 export function BarraTitulo(): JSX.Element {
   const version = useOficina((e) => e.version)
+  const raiz = useOficina((e) => e.raiz) ?? ''
   const modo = useOficina((e) => e.ajustes.modoPermisos)
   const plan = useOficina((e) => e.plan)
   const agentes = useAgentes()
@@ -21,6 +23,11 @@ export function BarraTitulo(): JSX.Element {
         <span>OFFICE</span>
       </div>
       <span className="version mono">v{version ?? '…'}</span>
+      <button className="chip-proyecto" onClick={() => cambiarUi({ proyectosAbierto: true })} title={`Proyecto: ${raiz}\nClic para abrir otro`}>
+        <Icono nombre="carpeta" tamano={13} />
+        <span className="recorte">{carpeta(raiz) || 'proyecto'}</span>
+        <span aria-hidden="true">▾</span>
+      </button>
       <span className="suave">{modo && modo !== 'manual' ? `modo ${nombreModo} activado` : 'modo manual'}</span>
       <span className="espaciador" />
       <IndicadorPlan plan={plan} onClick={() => cambiarUi({ pestana: 'consumo', seleccionado: null })} />

@@ -26,6 +26,7 @@ import type {
 import { ID_MICHAEL, REPARTO } from '../shared/reparto'
 import { comandoBase, proveedorDe, unirComando, ventanaDe } from '../shared/motores'
 import { cargarEquipo, guardarEquipo, normalizar } from './equipo'
+import { guardarPreferencias, leerPreferencias } from './preferencias'
 import { HiveStore, USUARIO, type PendienteDeEnvio } from './hive/hiveStore'
 import { MailboxRouter } from './hive/mailboxRouter'
 import { Sesiones } from './pty/sesiones'
@@ -116,6 +117,8 @@ export class Oficina extends EventEmitter {
     this.hive = new HiveStore(raiz)
     this.defs = cargarEquipo(raiz)
     this.ajustesActuales = this.hive.leerAjustes()
+    // Las IA agregadas son de tu Mac, no del proyecto.
+    this.ajustesActuales.motores = leerPreferencias().motores ?? this.ajustesActuales.motores ?? []
     this.consumo = new Consumo(this.hive.raiz)
     this.plan = this.consumo.leerPlan()
     this.biblioteca = new Biblioteca(
@@ -590,6 +593,7 @@ export class Oficina extends EventEmitter {
     const existente = this.defs.findIndex((d) => d.id === (anteriorId ?? limpio.id))
     if (anteriorId && anteriorId !== limpio.id) throw new Error('No se puede cambiar el id de un agente existente.')
     if (existente === -1 && this.def(limpio.id)) throw new Error(`Ya existe un agente con id "${limpio.id}".`)
+    const otraConversacion = existente >= 0 && this.defs[existente].reanudar !== limpio.reanudar
     if (existente >= 0) {
       this.defs[existente] = limpio
       const rt = this.runtime(limpio.id)
@@ -605,8 +609,9 @@ export class Oficina extends EventEmitter {
       void this.biblioteca.asegurar(limpio.skills)
       return
     }
-    // Si ya tenia sesion, se reinicia retomando la conversacion para que tome los cambios.
-    if (this.sesiones.activa(limpio.id)) void this.reiniciar(limpio.id, true)
+    // Si ya tenia sesion, se reinicia retomando la conversacion para que tome los cambios
+    // (o con la conversación que acabas de elegir).
+    if (this.sesiones.activa(limpio.id)) void this.reiniciar(limpio.id, !otraConversacion)
     else void this.iniciarAgente(limpio)
   }
 
@@ -696,6 +701,7 @@ export class Oficina extends EventEmitter {
     if (cambios.modoPermisos && cambios.modoPermisos !== this.ajustesActuales.modoPermisos) {
       this.evento('sistema', `Modo de permisos: ${cambios.modoPermisos} (se aplica a las sesiones nuevas)`)
     }
+    if (cambios.motores) guardarPreferencias({ motores: siguiente.motores })
     this.ajustesActuales = siguiente
     this.hive.guardarAjustes(siguiente)
     this.disparadores.aplicar()

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { Agente, ProveedorId } from '../../../shared/types'
-import { MODELOS_CLAUDE, PROVEEDORES } from '../../../shared/motores'
-import { accion, intentar, useAgentes } from '../../tienda'
+import { MODELOS_CLAUDE, motoresVisibles } from '../../../shared/motores'
+import { accion, intentar, useAgentes, useOficina } from '../../tienda'
 import { seleccionar } from '../../ui'
 import { dinero, tokens } from '../../formato'
 import { Barra, ChipEstado, Retrato } from '../basicos'
@@ -70,6 +70,8 @@ function FilaMonitor({ agente }: { agente: Agente }): JSX.Element {
   const rt = agente.rt
   const [proveedor, setProveedor] = useState<ProveedorId>(agente.proveedor)
   const [modelo, setModelo] = useState(agente.modelo)
+  const activos = useOficina((e) => e.ajustes.motores)
+  const opciones = motoresVisibles(activos, agente.proveedor)
   const cambiado = proveedor !== agente.proveedor || modelo !== agente.modelo
   const activa = rt.estado !== 'detenido' && rt.estado !== 'error'
   const [editandoLimite, setEditandoLimite] = useState(false)
@@ -140,13 +142,17 @@ function FilaMonitor({ agente }: { agente: Agente }): JSX.Element {
       {rt.limiteAlcanzado && <p className="alerta pequeno">Llegó a su límite: no recibe mensajes hasta que subas el límite.</p>}
       <div className="fila">
         <span className="suave pequeno">motor</span>
-        <select value={proveedor} onChange={(e) => setProveedor(e.target.value as ProveedorId)}>
-          {PROVEEDORES.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.nombre}
-            </option>
-          ))}
-        </select>
+        {opciones.length > 1 ? (
+          <select value={proveedor} onChange={(e) => setProveedor(e.target.value as ProveedorId)}>
+            {opciones.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.nombre}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <span className="pequeno">{opciones[0]?.nombre}</span>
+        )}
         {proveedor === 'claude' ? (
           <select value={modelo} onChange={(e) => setModelo(e.target.value)}>
             {MODELOS_CLAUDE.map((m) => (

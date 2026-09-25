@@ -10,6 +10,7 @@ import { CentroDeMando } from './components/CentroDeMando'
 import { PanelAgente } from './components/PanelAgente'
 import { Asistente } from './components/Asistente'
 import { Ajustes } from './components/Ajustes'
+import { SelectorProyecto } from './components/SelectorProyecto'
 import { Avisos } from './components/Avisos'
 import { Vacio } from './components/basicos'
 
@@ -19,7 +20,7 @@ const ESCENA_MIN = 420
 export function App(): JSX.Element {
   const cargada = useOficina(() => true)
   const agentes = useAgentes()
-  const { seleccionado, pantallaCompleta, tema, anchoPanel, asistente, ajustesAbiertos } = useUi()
+  const { seleccionado, pantallaCompleta, tema, anchoPanel, asistente, ajustesAbiertos, proyectosAbierto } = useUi()
 
   useEffect(() => {
     document.documentElement.dataset.tema = tema
@@ -71,6 +72,7 @@ export function App(): JSX.Element {
       )}
       {asistente && <Asistente inicial={asistente} />}
       {ajustesAbiertos && <Ajustes />}
+      {proyectosAbierto && <SelectorProyecto />}
       <Avisos />
     </div>
   )

@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process'
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { delimiter, join } from 'node:path'
-import type { AgentDefinition } from '../shared/types'
+import type { AgentDefinition, ProveedorId } from '../shared/types'
 import type { Capacidad, CatalogoItem } from '../shared/acciones'
 import { PROVEEDORES } from '../shared/motores'
 
@@ -92,6 +92,11 @@ function skillsEn(carpeta: string): Array<{ nombre: string; descripcion: string 
     }
   }
   return lista
+}
+
+/** Qué motores tienen su CLI instalada en esta máquina. */
+export function motoresInstalados(): ProveedorId[] {
+  return PROVEEDORES.filter((p) => p.binario && enPath(p.binario)).map((p) => p.id)
 }
 
 function enPath(binario: string): boolean {

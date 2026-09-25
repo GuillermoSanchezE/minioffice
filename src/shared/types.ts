@@ -164,6 +164,30 @@ export interface Ajustes {
   maxTemporales: number
   /** A qué se dedica la oficina; lo leen todos los agentes. */
   enfoque: string
+  /** Otras IA que agregaste en Ajustes (Claude Code siempre está). Se guarda por equipo, no por proyecto. */
+  motores: ProveedorId[]
+}
+
+/** Una carpeta donde ya trabajaste con Claude Code (de ~/.claude/projects). */
+export interface ProyectoClaude {
+  ruta: string
+  nombre: string
+  /** Última actividad (ms). */
+  ultimo: number
+  conversaciones: number
+}
+
+/** Una conversación de Claude Code que un agente puede retomar. */
+export interface ConversacionClaude {
+  id: string
+  titulo: string
+  primerPedido: string
+  inicio?: number
+  ultimo: number
+  rama?: string
+  megas: number
+  /** La empezó un agente de minioffice (no tú directamente). */
+  deMinioffice: boolean
 }
 
 export type EstadoTemporal = 'corriendo' | 'hecho' | 'error' | 'cancelado'
