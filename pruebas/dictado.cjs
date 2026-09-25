@@ -28,7 +28,9 @@ const normalizar = (t) => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase
   const banderas = [
     '--use-fake-ui-for-media-stream',
     '--use-fake-device-for-media-stream',
-    `--use-file-for-fake-audio-capture=${path.resolve(wav)}`
+    `--use-file-for-fake-audio-capture=${path.resolve(wav)}`,
+    // En macOS el servicio de audio va aislado y no podría leer el WAV.
+    '--disable-features=AudioServiceSandbox'
   ]
   const app = await electron.launch(
     ejecutable
@@ -42,6 +44,29 @@ const normalizar = (t) => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase
   await win.setViewportSize({ width: 1400, height: 880 })
   await win.waitForSelector('.barra-titulo', { timeout: 60_000 })
   await win.evaluate((m) => window.minioffice.accion({ tipo: 'dictado:ajustes', ajustes: { modelo: m, idioma: 'es' } }), modelo)
+
+  // ¿El micrófono simulado suena? (si no, el fallo es de la prueba, no de Whisper)
+  const microfono = await win.evaluate(async () => {
+    const flujo = await navigator.mediaDevices.getUserMedia({ audio: true })
+    const ctx = new AudioContext()
+    const analizador = ctx.createAnalyser()
+    ctx.createMediaStreamSource(flujo).connect(analizador)
+    const datos = new Float32Array(analizador.fftSize)
+    let maximo = 0
+    for (let i = 0; i < 25; i++) {
+      await new Promise((r) => setTimeout(r, 100))
+      analizador.getFloatTimeDomainData(datos)
+      let suma = 0
+      for (const v of datos) suma += v * v
+      maximo = Math.max(maximo, Math.sqrt(suma / datos.length))
+    }
+    const etiqueta = flujo.getAudioTracks()[0]?.label
+    flujo.getTracks().forEach((t) => t.stop())
+    await ctx.close()
+    return { etiqueta, rmsMaximo: Number(maximo.toFixed(4)) }
+  })
+  console.log('Micrófono simulado:', JSON.stringify(microfono))
+  if (microfono.rmsMaximo < 0.003) throw new Error('El micrófono simulado no suena: Chromium no pudo leer el WAV.')
   await win.click('.barra-titulo .segmentado button:has-text("Completa")')
   await win.click('.lateral-item:has-text("Monitor")')
   const campo = win.locator('.seccion textarea').first()
