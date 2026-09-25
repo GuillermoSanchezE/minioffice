@@ -527,7 +527,9 @@ export class Oficina extends EventEmitter {
     const companero = this.ajustesActuales.companeros.find((c) => `fuera:${c.id}` === m.para)
     if (!companero) return
     try {
-      const respuesta = await fetch(companero.url, {
+      // En Ajustes se guarda la dirección base de su webhook (http://host:puerto).
+      const destino = `${companero.url.replace(/\/+$/, '').replace(/\/mensaje$/, '')}/mensaje`
+      const respuesta = await fetch(destino, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${companero.clave}` },
         body: JSON.stringify({ para: 'michael', texto: m.cuerpo, de: `${this.nombreDe(m.de)} (oficina de ${userInfo().username})` })

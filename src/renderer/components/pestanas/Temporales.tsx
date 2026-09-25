@@ -103,7 +103,7 @@ export function PestanaTemporales(): JSX.Element {
           </button>
         </div>
         {temporales.length === 0 ? (
-          <Vacio>Sin temporales. Michael también puede contratarlos cuando algo es rápido y aislado.</Vacio>
+          <Vacio>Sin temporales. Un horario también puede crearlos (Automatizaciones → Para: un temporal nuevo).</Vacio>
         ) : (
           temporales.map((t) => <TarjetaTemporal key={t.id} temporal={t} />)
         )}
