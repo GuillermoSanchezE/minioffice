@@ -28,6 +28,10 @@ export interface Apariencia {
   boca?: 'sonrisa' | 'seria' | 'triste'
   complexion?: 'delgada' | 'normal' | 'gruesa'
   altura?: number
+  /** Si lleva falda, su color; si no, pantalon. */
+  falda?: number
+  pantalon?: number
+  rubor?: boolean
 }
 
 export interface Personaje {
@@ -54,7 +58,8 @@ export const REPARTO: Personaje[] = [
       camisa: 0xf4f6f8,
       prenda: 'traje',
       colorPrenda: 0x343a48,
-      corbata: 0x8a2433
+      corbata: 0x8a2433,
+      pantalon: 0x343a48
     }
   },
   {
@@ -73,7 +78,8 @@ export const REPARTO: Personaje[] = [
       corbata: 0x5a4632,
       lentes: true,
       boca: 'seria',
-      altura: 1.03
+      altura: 1.03,
+      pantalon: 0x4a3f33
     }
   },
   {
@@ -105,7 +111,9 @@ export const REPARTO: Personaje[] = [
       camisa: 0xf5efe6,
       prenda: 'cardigan',
       colorPrenda: 0xd98fa8,
-      altura: 0.94
+      altura: 0.94,
+      falda: 0x5a4a6a,
+      rubor: true
     }
   },
   {
@@ -121,7 +129,8 @@ export const REPARTO: Personaje[] = [
       camisa: 0xf2b5a8,
       prenda: 'chaleco',
       colorPrenda: 0x2f4f7a,
-      corbata: 0xb03a2e
+      corbata: 0xb03a2e,
+      pantalon: 0xb9a57c
     }
   },
   {
@@ -151,7 +160,9 @@ export const REPARTO: Personaje[] = [
       camisa: 0xe84393,
       prenda: 'camisa',
       complexion: 'delgada',
-      altura: 0.93
+      altura: 0.93,
+      falda: 0x2d2d3a,
+      rubor: true
     }
   },
   {
@@ -168,7 +179,8 @@ export const REPARTO: Personaje[] = [
       colorPrenda: 0xbfa78a,
       boca: 'seria',
       complexion: 'delgada',
-      altura: 0.88
+      altura: 0.88,
+      falda: 0x7a6a58
     }
   },
   {
@@ -183,7 +195,8 @@ export const REPARTO: Personaje[] = [
       camisa: 0x3f5f8a,
       prenda: 'camisa',
       complexion: 'gruesa',
-      altura: 1.04
+      altura: 1.04,
+      pantalon: 0x3b3b44
     }
   },
   {
@@ -208,7 +221,7 @@ export const REPARTO: Personaje[] = [
     rol: 'Representante de ventas',
     personalidad: 'Directo, sin rodeos y sin paciencia para reuniones inútiles. Ama los crucigramas y el día del pretzel.',
     apariencia: {
-      piel: 0x6e4428,
+      piel: 0x8a5634,
       pelo: 0x9a9a9a,
       peinado: 'calvoLados',
       camisa: 0xd8c7a3,
@@ -217,7 +230,8 @@ export const REPARTO: Personaje[] = [
       bigote: 0x8f8f8f,
       lentes: true,
       boca: 'seria',
-      complexion: 'gruesa'
+      complexion: 'gruesa',
+      pantalon: 0x4a3a2c
     }
   },
   {
@@ -233,7 +247,9 @@ export const REPARTO: Personaje[] = [
       prenda: 'cardigan',
       colorPrenda: 0x7fae8e,
       complexion: 'gruesa',
-      altura: 0.95
+      altura: 0.95,
+      falda: 0x6f5a7a,
+      rubor: true
     }
   },
   {
@@ -261,7 +277,8 @@ export const REPARTO: Personaje[] = [
       peinado: 'rizado',
       camisa: 0x2e8b57,
       prenda: 'camisa',
-      altura: 0.95
+      altura: 0.95,
+      falda: 0x3a3a44
     }
   },
   {

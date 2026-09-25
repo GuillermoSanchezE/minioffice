@@ -1,82 +1,147 @@
 import 'pixi.js/unsafe-eval'
-import { Application, Container, Graphics, Rectangle, Text, type FederatedPointerEvent, type TextStyleOptions } from 'pixi.js'
-import type { AgenteConEstado } from '../../shared/api'
-import type { AgentStatus } from '../../shared/types'
-import { COLOR_ESTADO } from '../colores'
-import { aparienciaDe, crearFigura, type Figura } from './personajes'
 import {
+  Application,
+  Container,
+  Graphics,
+  Rectangle,
+  Sprite,
+  Text,
+  Texture,
+  type FederatedPointerEvent,
+  type TextStyleOptions
+} from 'pixi.js'
+import type { AgentStatus } from '../../shared/types'
+import { spritesDe, type SpritesPersonaje } from '../pixel/personajes'
+import { Rejilla } from './caminos'
+import {
+  ACTIVIDADES,
+  ALTO,
+  ANCHO,
   ASIENTOS,
   ASIENTOS_LIBRES,
+  FRASES_VISITA,
   LIMITES,
-  dibujarPlano,
-  escritorioFrente,
-  escritorioLado,
-  monitor,
-  objeto,
-  sillaFrente,
-  sillaLado,
-  teclado,
-  type Asiento
+  ROTULOS,
+  dibujarFondo,
+  escritorio,
+  mobiliario,
+  obstaculos,
+  pantallaDe,
+  puntoSentado,
+  puntoVisita,
+  silla,
+  type Asiento,
+  type Mirada,
+  type Punto
 } from './plano'
 
-const ZOOM_MAXIMO = 3.5
-const MARGEN_PX = 10
+/** Lo que la escena necesita saber de cada agente. */
+export interface AgenteEnEscena {
+  id: string
+  personaje: string
+  nombre: string
+  estado: AgentStatus
+  herramienta?: string
+  esCoordinador?: boolean
+}
+
+const ZOOM_MAXIMO = 5
+const MARGEN_PX = 8
 const UMBRAL_ARRASTRE_PX = 5
+const VELOCIDAD = 34
+const MS_PASO = 150
 const DURACION_SOBRE_MS = 950
-const RESOLUCION_TEXTO = 4
-const ALTURA_CABEZA = 44
+const RESOLUCION_TEXTO = 10
 
 const PANTALLA: Record<AgentStatus, number> = {
-  detenido: 0x1a1f2b,
+  detenido: 0x341422,
   iniciando: 0xfacc15,
-  inactivo: 0x3b6fb8,
-  trabajando: 0x34d399,
-  error: 0xb83b3b
+  inactivo: 0x5c8ade,
+  trabajando: 0x7fb3ff,
+  esperando: 0xf0b429,
+  pausado: 0x9aa3b1,
+  error: 0xd9483b
 }
 
-const estiloEtiqueta: TextStyleOptions = {
-  fontFamily: 'system-ui, sans-serif',
-  fontSize: 11,
-  fontWeight: '600',
-  fill: 0xeef1f6
+const COLOR_PUNTO: Record<AgentStatus, number> = {
+  detenido: 0x8a8f99,
+  iniciando: 0xfacc15,
+  inactivo: 0x7fb3ff,
+  trabajando: 0x4fd1a5,
+  esperando: 0xf0b429,
+  pausado: 0xb8c0cc,
+  error: 0xef5350
 }
 
-interface Puesto {
+const fuenteMono = '"JetBrains Mono", ui-monospace, monospace'
+
+const estiloGlobo: TextStyleOptions = { fontFamily: fuenteMono, fontSize: 6, fontWeight: '600', fill: 0x2a1f26 }
+const estiloEtiqueta: TextStyleOptions = { fontFamily: fuenteMono, fontSize: 5, fontWeight: '700', fill: 0xfdf7ef }
+const estiloRotulo: TextStyleOptions = { fontFamily: fuenteMono, fontSize: 5, fontWeight: '700', fill: 0x5d7465, letterSpacing: 0.3 }
+
+/** Texto del globo segun la herramienta que Claude Code esta usando. */
+export function textoHerramienta(herramienta: string): string {
+  const prefijos: Record<string, string> = { Bash: '$', Read: '<', Write: '>', Edit: '✎', MultiEdit: '✎', Grep: '?', Glob: '?' }
+  return `${prefijos[herramienta] ?? '·'} usando ${herramienta}`
+}
+
+type Modo = 'sentado' | 'caminando' | 'de-pie'
+
+interface Actor {
   id: string
+  nombre: string
   asiento: Asiento
-  contenedor: Container
-  figura: Figura
-  manos: [Graphics, Graphics] | null
-  pantalla: Graphics
-  resaltado: Graphics
+  sprites: SpritesPersonaje
+  cuerpo: Sprite
+  pantalla: Sprite
+  halo: Graphics
+  seleccion: Graphics
+  etiqueta: Container
   borde: Graphics
   punto: Graphics
-  burbuja: Container
-  textoBurbuja: Text
+  globo: Container
+  fondoGlobo: Graphics
+  textoGlobo: Text
+  colaGlobo: number
   zzz: Text
-  alerta: Container
-  cimaCabeza: number
   estado: AgentStatus
+  herramienta?: string
   esCoordinador: boolean
+
+  pos: Punto
+  modo: Modo
+  camino: Punto[]
+  mirada: Mirada
+  /** Al llegar al destino: sentarse o hacer una actividad. */
+  alLlegar: 'sentarse' | { frase: string; mirada: Mirada }
+  frase?: string
+  finActividad: number
+  proximaSalida: number
   proximoParpadeo: number
   finParpadeo: number
+  inicioPaso: number
   fase: number
 }
 
 interface Sobre {
   g: Graphics
-  desde: { x: number; y: number }
-  hasta: { x: number; y: number }
+  de: Actor
+  para: Actor
   t: number
 }
 
 const limitar = (v: number, min: number, max: number): number => Math.min(max, Math.max(min, v))
+const azar = <T>(lista: T[]): T => lista[Math.floor(Math.random() * lista.length)]
+
+function debeEstarSentado(estado: AgentStatus): boolean {
+  return estado !== 'inactivo'
+}
 
 /**
- * La oficina en 2D. Cada personaje tiene su puesto fijo: sin sesion se queda
- * dormido en su escritorio; con sesion abre los ojos, enciende el monitor y
- * teclea cuando su terminal tiene actividad. Los mensajes del hive vuelan
- * como sobres. Rueda del raton para acercar, arrastrar para moverse.
+ * La oficina en pixel art. Cada personaje tiene su escritorio: ahi trabaja y
+ * duerme si no tiene sesion; cuando esta libre se levanta a por un café, a la
+ * máquina de snacks o a visitar a un compañero, y vuelve en cuanto le llega
+ * trabajo. Rueda para acercar, arrastrar para moverse, doble clic para ver todo.
  */
 export class EscenaOficina {
   private app = new Application()
@@ -84,15 +149,18 @@ export class EscenaOficina {
   private destruida = false
 
   private mundo = new Container()
-  private capaPuestos = new Container()
-  private capaEfectos = new Container()
+  private capaSuelo = new Container()
+  private capaObjetos = new Container()
+  private capaEncima = new Container()
 
-  private puestos = new Map<string, Puesto>()
-  private libresUsados = 0
+  private actores = new Map<string, Actor>()
+  private escritoriosOcupados = new Set<Asiento>()
+  private rejilla: Rejilla
   private sobres: Sobre[] = []
   private seleccionado: string | null = null
   private tiempo = 0
   private tamano = { ancho: 0, alto: 0 }
+  private mostrarNombres = true
 
   private camara = { zoom: 1, x: 0, y: 0 }
   private arrastre: { px: number; py: number; x: number; y: number } | null = null
@@ -113,20 +181,27 @@ export class EscenaOficina {
     private host: HTMLElement,
     private alSeleccionar: (agentId: string) => void
   ) {
-    this.capaPuestos.sortableChildren = true
-    this.mundo.addChild(dibujarPlano(), this.capaPuestos, this.capaEfectos)
+    const todos = [...Object.values(ASIENTOS), ...ASIENTOS_LIBRES]
+    this.rejilla = new Rejilla(ANCHO, ALTO, obstaculos(todos))
+    this.capaObjetos.sortableChildren = true
+    this.mundo.addChild(this.capaSuelo, this.capaObjetos, this.capaEncima)
     this.listo = this.iniciar()
   }
 
   private async iniciar(): Promise<void> {
-    await this.app.init({
-      background: 0x151922,
-      resizeTo: this.host,
-      antialias: true,
-      autoDensity: true,
-      resolution: window.devicePixelRatio || 1
-    })
+    await Promise.all([
+      this.app.init({
+        background: 0x19121e,
+        resizeTo: this.host,
+        antialias: false,
+        autoDensity: true,
+        resolution: window.devicePixelRatio || 1
+      }),
+      document.fonts.load(`600 12px ${fuenteMono}`).catch(() => undefined),
+      document.fonts.load(`700 12px ${fuenteMono}`).catch(() => undefined)
+    ])
     if (this.destruida) return
+    this.construirOficina()
     this.host.appendChild(this.app.canvas)
     this.app.stage.addChild(this.mundo)
     this.configurarCamara()
@@ -138,188 +213,391 @@ export class EscenaOficina {
     this.destruida = true
     this.host.removeEventListener('wheel', this.alRueda)
     this.host.removeEventListener('dblclick', this.alDobleClic)
-    // init es asincrono: se destruye cuando termina, aunque se pida antes.
     this.listo.then(() => this.app.destroy(true, { children: true })).catch(() => undefined)
   }
 
-  sincronizar(agentes: AgenteConEstado[]): void {
+  sincronizar(agentes: AgenteEnEscena[]): void {
     void this.listo.then(() => {
       if (this.destruida) return
       for (const agente of agentes) {
-        const puesto = this.puestos.get(agente.id) ?? this.crearPuesto(agente)
-        this.cambiarEstado(puesto, agente.estado)
+        const actor = this.actores.get(agente.id) ?? this.crearActor(agente)
+        actor.estado = agente.estado
+        actor.herramienta = agente.herramienta
+        actor.punto.tint = COLOR_PUNTO[agente.estado]
       }
     })
   }
 
   seleccionar(agentId: string | null): void {
     this.seleccionado = agentId
-    for (const puesto of this.puestos.values()) {
-      const activo = puesto.id === agentId
-      puesto.resaltado.visible = activo
-      puesto.borde.visible = activo
-    }
+    for (const actor of this.actores.values()) this.pintarSeleccion(actor)
+  }
+
+  verNombres(visible: boolean): void {
+    this.mostrarNombres = visible
   }
 
   enviarSobre(deId: string, paraId: string): void {
-    const de = this.puestos.get(deId)
-    const para = this.puestos.get(paraId)
+    const de = this.actores.get(deId)
+    const para = this.actores.get(paraId)
     if (!de || !para) return
-
     const g = new Graphics()
-      .roundRect(-9, -6, 18, 12, 2)
+      .rect(-5, -3.5, 10, 7)
       .fill(0xfdfcf7)
-      .stroke({ width: 1, color: 0x9ca3af })
-      .moveTo(-9, -6)
-      .lineTo(0, 1)
-      .lineTo(9, -6)
-      .stroke({ width: 1, color: 0x9ca3af })
-    const desde = { x: de.asiento.x, y: de.asiento.y - ALTURA_CABEZA }
-    g.position.set(desde.x, desde.y)
-    this.capaEfectos.addChild(g)
-    this.sobres.push({ g, desde, hasta: { x: para.asiento.x, y: para.asiento.y - ALTURA_CABEZA }, t: 0 })
+      .stroke({ width: 1, color: 0x2a1f26, alignment: 1 })
+      .moveTo(-5, -3.5)
+      .lineTo(0, 0.5)
+      .lineTo(5, -3.5)
+      .stroke({ width: 0.75, color: 0x9ca3af })
+    g.position.set(de.pos.x, de.pos.y - 26)
+    this.capaEncima.addChild(g)
+    this.sobres.push({ g, de, para, t: 0 })
   }
 
-  // ---------------------------------------------------------------- puestos
+  // ------------------------------------------------------------ montaje
 
-  private asientoPara(agentId: string): Asiento {
-    const propio = ASIENTOS[agentId]
-    if (propio) return propio
-    const i = this.libresUsados++
-    const base = ASIENTOS_LIBRES[i % ASIENTOS_LIBRES.length]
-    const vuelta = Math.floor(i / ASIENTOS_LIBRES.length)
-    return { ...base, x: base.x + vuelta * 10, y: base.y + vuelta * 10 }
+  private construirOficina(): void {
+    const fondo = dibujarFondo()
+    const sprite = new Sprite(fondo.textura)
+    sprite.position.set(fondo.x, fondo.y)
+    this.capaSuelo.addChild(sprite)
+
+    for (const rotulo of ROTULOS) {
+      const estilo = rotulo.letrero ? { ...estiloRotulo, fill: 0xf4f6f8, fontSize: 4.5, letterSpacing: 0.6 } : estiloRotulo
+      const t = new Text({ text: rotulo.texto, style: estilo, resolution: RESOLUCION_TEXTO })
+      t.anchor.set(0.5)
+      t.position.set(rotulo.x, rotulo.y)
+      this.capaSuelo.addChild(t)
+    }
+
+    for (const pieza of mobiliario()) {
+      const s = new Sprite(pieza.textura)
+      s.position.set(pieza.x, pieza.y)
+      s.zIndex = pieza.base
+      this.capaObjetos.addChild(s)
+    }
+
+    // Escritorios vacios: se pintan todos; los ocupados se reutilizan al crear actores.
+    for (const asiento of ASIENTOS_LIBRES) this.montarEscritorio(asiento)
   }
 
-  private crearPuesto(agente: AgenteConEstado): Puesto {
-    const asiento = this.asientoPara(agente.id)
-    const ap = aparienciaDe(agente.id)
-    const frente = asiento.orientacion === 'frente'
-    const izquierda = asiento.orientacion === 'izquierda'
-    const zona = frente
-      ? new Rectangle(-58, -64, 116, 122)
-      : new Rectangle(izquierda ? -70 : -24, -64, 94, 100)
+  private escritoriosMontados = new Map<Asiento, { pantalla: Sprite }>()
 
-    const contenedor = new Container()
-    contenedor.position.set(asiento.x, asiento.y)
-    contenedor.zIndex = asiento.y
-    contenedor.eventMode = 'static'
-    contenedor.cursor = 'pointer'
-    contenedor.hitArea = zona
-    contenedor.on('pointertap', () => {
+  private montarEscritorio(asiento: Asiento): { pantalla: Sprite } {
+    const existente = this.escritoriosMontados.get(asiento)
+    if (existente) return existente
+    const mesa = escritorio(asiento)
+    const s = new Sprite(mesa.textura)
+    s.position.set(mesa.x, mesa.y)
+    s.zIndex = mesa.base
+    const asientoSilla = silla(asiento)
+    const sillaSprite = new Sprite(asientoSilla.textura)
+    sillaSprite.position.set(asientoSilla.x, asientoSilla.y)
+    sillaSprite.zIndex = asientoSilla.base
+    const zona = pantallaDe(asiento)
+    const pantalla = new Sprite(Texture.WHITE)
+    pantalla.position.set(zona.x, zona.y)
+    pantalla.width = zona.w
+    pantalla.height = zona.h
+    pantalla.tint = PANTALLA.detenido
+    pantalla.zIndex = mesa.base + 0.01
+    this.capaObjetos.addChild(sillaSprite, s, pantalla)
+    const montado = { pantalla }
+    this.escritoriosMontados.set(asiento, montado)
+    return montado
+  }
+
+  private asientoPara(agente: AgenteEnEscena): Asiento {
+    const propio = ASIENTOS[agente.personaje] ?? ASIENTOS[agente.id]
+    if (propio && !this.escritoriosOcupados.has(propio)) return propio
+    const libre = ASIENTOS_LIBRES.find((a) => !this.escritoriosOcupados.has(a))
+    if (libre) return libre
+    const base = ASIENTOS_LIBRES[this.escritoriosOcupados.size % ASIENTOS_LIBRES.length]
+    return { ...base, dx: base.dx + 4, dy: base.dy + 4 }
+  }
+
+  private crearActor(agente: AgenteEnEscena): Actor {
+    const asiento = this.asientoPara(agente)
+    this.escritoriosOcupados.add(asiento)
+    const { pantalla } = this.montarEscritorio(asiento)
+    const sprites = spritesDe(agente.personaje)
+    const pos = puntoSentado(asiento)
+
+    const cuerpo = new Sprite(sprites.sentado.normal)
+    cuerpo.anchor.set(0.5, 1)
+    cuerpo.position.set(pos.x, pos.y)
+    cuerpo.zIndex = pos.y
+    cuerpo.eventMode = 'static'
+    cuerpo.cursor = 'pointer'
+    cuerpo.hitArea = new Rectangle(-10, -30, 20, 30)
+    cuerpo.on('pointertap', () => {
       if (!this.huboArrastre) this.alSeleccionar(agente.id)
     })
 
-    const resaltado = new Graphics()
-      .roundRect(zona.x, zona.y, zona.width, zona.height, 14)
-      .fill({ color: 0xfacc15, alpha: 0.08 })
-      .stroke({ width: 2, color: 0xfacc15, alpha: 0.85 })
+    const halo = new Graphics().ellipse(0, 0, 15, 5).fill({ color: 0x4fd1c5, alpha: 0.35 })
+    halo.position.set(pos.x, asiento.dy + 14)
+    halo.visible = false
+    const seleccion = new Graphics().ellipse(0, 0, 11, 4).stroke({ width: 1.5, color: 0xf2c94c })
+    seleccion.visible = false
+    this.capaSuelo.addChild(halo, seleccion)
 
-    // Silla, escritorio y personaje; se refleja entero para quien mira a la izquierda.
-    const grupo = new Container()
-    if (izquierda) grupo.scale.x = -1
-    const atras = new Graphics()
-    const adelante = new Graphics()
-    const marco = new Graphics()
-    const pantalla = new Graphics()
-    const figura = crearFigura(ap, asiento.orientacion)
-    let manos: [Graphics, Graphics] | null = null
-    let etiquetaY: number
-
-    if (frente) {
-      sillaFrente(atras)
-      etiquetaY = escritorioFrente(adelante, asiento.mueble ?? 'normal').etiquetaY
-      teclado(adelante, -13, -6, 26)
-      monitor(marco, pantalla, 22, -30)
-      if (asiento.objeto) objeto(adelante, asiento.objeto, -30, -1)
-      manos = [new Graphics().circle(-7, -3.5, 3.2).fill(ap.piel), new Graphics().circle(7, -3.5, 3.2).fill(ap.piel)]
-      grupo.addChild(atras, figura.raiz, adelante, marco, pantalla, ...manos)
-    } else {
-      sillaLado(atras)
-      escritorioLado(atras)
-      teclado(atras, 16, -17, 18)
-      monitor(marco, pantalla, 40, -50)
-      if (asiento.objeto) objeto(atras, asiento.objeto, 56, -9)
-      etiquetaY = 24
-      grupo.addChild(atras, marco, pantalla, figura.raiz)
-    }
-
-    // Etiqueta con el nombre de pila y el punto de estado
+    // Etiqueta con el nombre de pila
     const texto = new Text({ text: agente.nombre.split(' ')[0], style: estiloEtiqueta, resolution: RESOLUCION_TEXTO })
     texto.anchor.set(0, 0.5)
-    const ancho = texto.width + 22
+    const ancho = Math.ceil(texto.width) + 11
     const etiqueta = new Container()
-    etiqueta.position.set(0, etiquetaY)
-    const fondo = new Graphics().roundRect(-ancho / 2, -8.5, ancho, 17, 8.5).fill({ color: 0x10131a, alpha: 0.85 })
-    const borde = new Graphics().roundRect(-ancho / 2, -8.5, ancho, 17, 8.5).stroke({ width: 1.5, color: 0xfacc15 })
-    const punto = new Graphics().circle(-ancho / 2 + 9, 0, 3.3).fill(0xffffff)
-    texto.position.set(-ancho / 2 + 15, 0)
+    const fondo = new Graphics().roundRect(-ancho / 2, -4, ancho, 8, 3).fill({ color: 0x2a1f26, alpha: 0.85 })
+    const borde = new Graphics().roundRect(-ancho / 2, -4, ancho, 8, 3).stroke({ width: 1, color: 0xf2c94c })
+    const punto = new Graphics().circle(-ancho / 2 + 4.5, 0, 1.6).fill(0xffffff)
+    texto.position.set(-ancho / 2 + 8, 0)
     etiqueta.addChild(fondo, borde, punto, texto)
 
-    // Globos sobre la cabeza
-    const cimaCabeza = -48 * (ap.altura ?? 1)
-    const burbuja = new Container()
-    burbuja.addChild(
-      new Graphics().roundRect(-14, -9, 28, 16, 7).fill(0xf8fafc).poly([-10, 5, -16, 12, -4, 6]).fill(0xf8fafc)
-    )
-    const textoBurbuja = new Text({
-      text: '.',
-      style: { ...estiloEtiqueta, fill: 0x111827, fontSize: 12 },
-      resolution: RESOLUCION_TEXTO
-    })
-    textoBurbuja.anchor.set(0.5)
-    textoBurbuja.position.set(0, -3)
-    burbuja.addChild(textoBurbuja)
-    burbuja.position.set(frente ? 24 : 30, cimaCabeza - (frente ? -2 : 5))
+    // Globo de estado
+    const globo = new Container()
+    const fondoGlobo = new Graphics()
+    const textoGlobo = new Text({ text: '', style: estiloGlobo, resolution: RESOLUCION_TEXTO })
+    textoGlobo.anchor.set(0.5, 0.5)
+    globo.addChild(fondoGlobo, textoGlobo)
+    globo.visible = false
 
     const zzz = new Text({
       text: 'zZ',
-      style: { ...estiloEtiqueta, fontSize: 10, fill: 0xc7d2fe, fontStyle: 'italic' },
+      style: { ...estiloGlobo, fill: 0xc7d2fe, fontSize: 6, fontStyle: 'italic', fontWeight: '700' },
       resolution: RESOLUCION_TEXTO
     })
     zzz.anchor.set(0.5)
+    zzz.visible = false
 
-    const alerta = new Container()
-    const signo = new Text({ text: '!', style: { ...estiloEtiqueta, fontSize: 11, fill: 0xffffff }, resolution: RESOLUCION_TEXTO })
-    signo.anchor.set(0.5)
-    alerta.addChild(new Graphics().circle(0, 0, 7).fill(0xef4444), signo)
-    alerta.position.set(14, cimaCabeza - 4)
+    this.capaObjetos.addChild(cuerpo)
+    this.capaEncima.addChild(etiqueta, globo, zzz)
 
-    contenedor.addChild(resaltado, grupo, etiqueta, burbuja, zzz, alerta)
-    this.capaPuestos.addChild(contenedor)
-
-    const activo = this.seleccionado === agente.id
-    resaltado.visible = activo
-    borde.visible = activo
-
-    const puesto: Puesto = {
+    const actor: Actor = {
       id: agente.id,
+      nombre: agente.nombre,
       asiento,
-      contenedor,
-      figura,
-      manos,
+      sprites,
+      cuerpo,
       pantalla,
-      resaltado,
+      halo,
+      seleccion,
+      etiqueta,
       borde,
       punto,
-      burbuja,
-      textoBurbuja,
+      globo,
+      fondoGlobo,
+      textoGlobo,
+      colaGlobo: 0,
       zzz,
-      alerta,
-      cimaCabeza,
       estado: agente.estado,
+      herramienta: agente.herramienta,
       esCoordinador: !!agente.esCoordinador,
+      pos,
+      modo: 'sentado',
+      camino: [],
+      mirada: 'frente',
+      alLlegar: 'sentarse',
+      finActividad: 0,
+      proximaSalida: this.tiempo + 6000 + Math.random() * 20000,
       proximoParpadeo: Math.random() * 4000,
       finParpadeo: 0,
-      fase: Math.random() * Math.PI * 2
+      inicioPaso: 0,
+      fase: Math.random() * 1000
     }
-    this.puestos.set(agente.id, puesto)
-    return puesto
+    this.actores.set(agente.id, actor)
+    this.pintarSeleccion(actor)
+    return actor
   }
 
-  private cambiarEstado(puesto: Puesto, estado: AgentStatus): void {
-    puesto.estado = estado
-    puesto.punto.tint = COLOR_ESTADO[estado]
+  private pintarSeleccion(actor: Actor): void {
+    const activo = actor.id === this.seleccionado
+    actor.seleccion.visible = activo
+    actor.borde.visible = activo
+  }
+
+  // ---------------------------------------------------------- comportamiento
+
+  private irA(actor: Actor, destino: Punto, alLlegar: Actor['alLlegar']): void {
+    actor.camino = this.rejilla.camino(actor.pos, destino)
+    actor.alLlegar = alLlegar
+    actor.modo = 'caminando'
+    actor.frase = undefined
+    actor.inicioPaso = this.tiempo
+  }
+
+  private volverAlEscritorio(actor: Actor): void {
+    this.irA(actor, puntoSentado(actor.asiento), 'sentarse')
+  }
+
+  private salirDeActividad(actor: Actor): void {
+    const otros = [...this.actores.values()].filter((a) => a !== actor)
+    if (otros.length > 0 && Math.random() < 0.3) {
+      const visitado = azar(otros)
+      this.irA(actor, puntoVisita(visitado.asiento), { frase: azar(FRASES_VISITA), mirada: 'espalda' })
+      return
+    }
+    const actividad = azar(ACTIVIDADES)
+    this.irA(actor, actividad.punto, { frase: azar(actividad.frases), mirada: actividad.mirada })
+  }
+
+  private decidir(actor: Actor): void {
+    const sentarse = debeEstarSentado(actor.estado)
+    if (sentarse) {
+      const yendoAlEscritorio = actor.modo === 'caminando' && actor.alLlegar === 'sentarse'
+      if (actor.modo !== 'sentado' && !yendoAlEscritorio) this.volverAlEscritorio(actor)
+      return
+    }
+    if (actor.modo === 'sentado' && this.tiempo >= actor.proximaSalida) {
+      this.salirDeActividad(actor)
+    } else if (actor.modo === 'de-pie' && this.tiempo >= actor.finActividad) {
+      this.volverAlEscritorio(actor)
+    }
+  }
+
+  private avanzar(actor: Actor, dtMs: number): void {
+    let restante = (VELOCIDAD * dtMs) / 1000
+    while (restante > 0 && actor.camino.length > 0) {
+      const siguiente = actor.camino[0]
+      const dx = siguiente.x - actor.pos.x
+      const dy = siguiente.y - actor.pos.y
+      const distancia = Math.hypot(dx, dy)
+      if (distancia > 0.01) {
+        actor.mirada = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'derecha' : 'izquierda') : dy < 0 ? 'espalda' : 'frente'
+      }
+      if (distancia <= restante) {
+        actor.pos = { ...siguiente }
+        actor.camino.shift()
+        restante -= distancia
+      } else {
+        actor.pos = { x: actor.pos.x + (dx / distancia) * restante, y: actor.pos.y + (dy / distancia) * restante }
+        restante = 0
+      }
+    }
+    if (actor.camino.length > 0) return
+
+    if (actor.alLlegar === 'sentarse') {
+      actor.modo = 'sentado'
+      actor.pos = puntoSentado(actor.asiento)
+      actor.proximaSalida = this.tiempo + 12000 + Math.random() * 30000
+    } else {
+      actor.modo = 'de-pie'
+      actor.mirada = actor.alLlegar.mirada
+      actor.frase = actor.alLlegar.frase
+      actor.finActividad = this.tiempo + 4000 + Math.random() * 4000
+    }
+  }
+
+  // --------------------------------------------------------------- dibujo
+
+  private textura(actor: Actor): { textura: Texture; espejo: boolean } {
+    const s = actor.sprites
+    const t = this.tiempo
+    const despierto = actor.estado !== 'detenido'
+    if (despierto && t >= actor.proximoParpadeo) {
+      actor.finParpadeo = t + 130
+      actor.proximoParpadeo = t + 2500 + Math.random() * 4000
+    }
+    const parpadea = t < actor.finParpadeo
+
+    if (actor.modo === 'sentado') {
+      if (!despierto || parpadea) return { textura: s.sentado.cerrados, espejo: false }
+      if (actor.estado === 'trabajando' && Math.floor((t + actor.fase) / 130) % 2) return { textura: s.sentado.teclea, espejo: false }
+      return { textura: s.sentado.normal, espejo: false }
+    }
+    const caminando = actor.modo === 'caminando'
+    const ciclo = Math.floor((t - actor.inicioPaso) / MS_PASO) % 4
+    const pie = (vista: { quieto: Texture; pasos: [Texture, Texture] }): Texture =>
+      !caminando || ciclo % 2 === 1 ? vista.quieto : vista.pasos[ciclo === 0 ? 0 : 1]
+    switch (actor.mirada) {
+      case 'espalda':
+        return { textura: pie(s.espalda), espejo: false }
+      case 'izquierda':
+        return { textura: pie(s.lado), espejo: true }
+      case 'derecha':
+        return { textura: pie(s.lado), espejo: false }
+      default:
+        if (!caminando && parpadea) return { textura: s.frente.quietoCerrados, espejo: false }
+        return { textura: pie(s.frente), espejo: false }
+    }
+  }
+
+  private textoDelGlobo(actor: Actor): string | null {
+    if (actor.modo === 'de-pie' && actor.frase) return actor.frase
+    if (actor.modo !== 'sentado') return null
+    switch (actor.estado) {
+      case 'trabajando':
+        return actor.herramienta ? textoHerramienta(actor.herramienta) : 'pensando…'
+      case 'iniciando':
+        return 'iniciando'
+      case 'esperando':
+        return 'esperando permiso'
+      case 'pausado':
+        return 'en pausa'
+      case 'error':
+        return '¡error!'
+      default:
+        return null
+    }
+  }
+
+  private dibujarActor(actor: Actor): void {
+    const { textura, espejo } = this.textura(actor)
+    const c = actor.cuerpo
+    if (c.texture !== textura) c.texture = textura
+    c.scale.x = espejo ? -1 : 1
+    const rebote = actor.modo === 'caminando' && Math.floor((this.tiempo - actor.inicioPaso) / MS_PASO) % 2 === 0 ? -1 : 0
+    c.position.set(Math.round(actor.pos.x), Math.round(actor.pos.y) + rebote)
+    c.zIndex = actor.pos.y
+
+    const sentado = actor.modo === 'sentado'
+    const trabajando = sentado && actor.estado === 'trabajando'
+    actor.halo.visible = trabajando
+    if (trabajando) actor.halo.alpha = 0.65 + Math.sin(this.tiempo / 300 + actor.fase) * 0.35
+
+    actor.seleccion.position.set(Math.round(actor.pos.x), sentado ? actor.asiento.dy + 14 : Math.round(actor.pos.y))
+
+    const cima = Math.round(actor.pos.y) - 30
+    const etiquetaY = sentado ? actor.asiento.dy + (actor.asiento.mueble === 'recepcion' ? 37 : 31) : Math.round(actor.pos.y) + 5
+    actor.etiqueta.position.set(Math.round(actor.pos.x), etiquetaY)
+    actor.etiqueta.visible = this.mostrarNombres || actor.id === this.seleccionado
+
+    // Monitor
+    const t = this.tiempo
+    let tinte = PANTALLA[actor.estado]
+    if (actor.estado === 'iniciando') tinte = Math.floor(t / 300) % 2 ? PANTALLA.iniciando : 0x3a2a14
+    if (actor.estado === 'trabajando') tinte = Math.floor((t + actor.fase) / 400) % 2 ? PANTALLA.trabajando : 0x5c8ade
+    actor.pantalla.tint = tinte
+
+    // Globo
+    const texto = this.textoDelGlobo(actor)
+    actor.globo.visible = !!texto
+    if (texto) {
+      const ancho = Math.ceil(actor.textoGlobo.width) + 7
+      // El globo no se sale de la oficina; la colita sigue apuntando a la cabeza.
+      const centro = limitar(Math.round(actor.pos.x), LIMITES.x + ancho / 2 + 1, LIMITES.x + LIMITES.ancho - ancho / 2 - 1)
+      const cola = Math.round(actor.pos.x) - centro
+      if (actor.textoGlobo.text !== texto || actor.colaGlobo !== cola) {
+        actor.textoGlobo.text = texto
+        actor.colaGlobo = cola
+        const w = Math.ceil(actor.textoGlobo.width) + 7
+        actor.fondoGlobo
+          .clear()
+          .roundRect(-w / 2, -5, w, 10, 2)
+          .fill(0xfffdf8)
+          .stroke({ width: 1, color: 0x2a1f26, alignment: 1 })
+          .poly([cola - 2, 5, cola + 2, 5, cola - 1, 8])
+          .fill(0xfffdf8)
+      }
+      actor.globo.position.set(centro, cima - 7)
+    }
+
+    // Zzz al dormir
+    const durmiendo = sentado && actor.estado === 'detenido'
+    actor.zzz.visible = durmiendo
+    if (durmiendo) {
+      const avance = ((t + actor.fase * 7) / 1800) % 1
+      actor.zzz.position.set(actor.pos.x + 9 + avance * 3, cima + 4 - avance * 7)
+      actor.zzz.alpha = 1 - avance
+    }
   }
 
   // ----------------------------------------------------------------- camara
@@ -362,8 +640,7 @@ export class EscenaOficina {
     return Math.max(0.05, Math.min((width - MARGEN_PX * 2) / LIMITES.ancho, (height - MARGEN_PX * 2) / LIMITES.alto))
   }
 
-  /** Posicion del mundo centrado, sin desplazamiento de la camara. */
-  private origen(escala: number): { x: number; y: number } {
+  private origen(escala: number): Punto {
     const { width, height } = this.app.screen
     return {
       x: (width - LIMITES.ancho * escala) / 2 - LIMITES.x * escala,
@@ -380,10 +657,9 @@ export class EscenaOficina {
     this.camara.y = limitar(this.camara.y, -holguraY, holguraY)
     const origen = this.origen(escala)
     this.mundo.scale.set(escala)
-    this.mundo.position.set(origen.x + this.camara.x, origen.y + this.camara.y)
+    this.mundo.position.set(Math.round(origen.x + this.camara.x), Math.round(origen.y + this.camara.y))
   }
 
-  /** Acerca o aleja manteniendo fijo el punto del mundo bajo el cursor. */
   private acercarEn(px: number, py: number, factor: number): void {
     const escalaAntes = this.mundo.scale.x
     const mundoX = (px - this.mundo.x) / escalaAntes
@@ -399,63 +675,19 @@ export class EscenaOficina {
   // -------------------------------------------------------------- animacion
 
   private tick(dtMs: number): void {
-    this.tiempo += dtMs
+    const paso = Math.min(dtMs, 100)
+    this.tiempo += paso
     const { width, height } = this.app.screen
     if (width !== this.tamano.ancho || height !== this.tamano.alto) {
       this.tamano = { ancho: width, alto: height }
       this.aplicarCamara()
     }
-    for (const puesto of this.puestos.values()) this.animarPuesto(puesto)
-    this.animarSobres(dtMs)
-  }
-
-  private animarPuesto(p: Puesto): void {
-    const t = this.tiempo
-    const despierto = p.estado !== 'detenido'
-    const trabajando = p.estado === 'trabajando'
-
-    let ojosCerrados = !despierto
-    if (despierto && t >= p.proximoParpadeo) {
-      p.finParpadeo = t + 140
-      p.proximoParpadeo = t + 2500 + Math.random() * 4000
+    for (const actor of this.actores.values()) {
+      this.decidir(actor)
+      if (actor.modo === 'caminando') this.avanzar(actor, paso)
+      this.dibujarActor(actor)
     }
-    if (despierto) ojosCerrados = t < p.finParpadeo
-    p.figura.ojosAbiertos.visible = !ojosCerrados
-    p.figura.ojosCerrados.visible = ojosCerrados
-
-    const raiz = p.figura.raiz
-    raiz.y = trabajando ? Math.sin(t / 120 + p.fase) * 0.8 : despierto ? 0 : 1.5
-    raiz.rotation = despierto ? 0 : 0.06
-
-    if (p.manos) {
-      p.manos[0].y = trabajando ? Math.sin(t / 55 + p.fase) * 1.2 : 0
-      p.manos[1].y = trabajando ? Math.sin(t / 55 + p.fase + Math.PI) * 1.2 : 0
-    }
-
-    p.burbuja.visible = trabajando
-    if (trabajando) {
-      const puntos = '.'.repeat(1 + (Math.floor(t / 350) % 3))
-      if (p.textoBurbuja.text !== puntos) p.textoBurbuja.text = puntos
-    }
-
-    p.zzz.visible = !despierto
-    if (!despierto) {
-      const avance = (t / 1800 + p.fase) % 1
-      p.zzz.position.set(16 + avance * 6, p.cimaCabeza - avance * 12)
-      p.zzz.alpha = 1 - avance
-    }
-
-    p.alerta.visible = p.estado === 'error'
-
-    if (p.estado === 'iniciando') {
-      p.pantalla.tint = Math.floor(t / 300) % 2 ? PANTALLA.iniciando : 0x3a3f4b
-    } else if (trabajando) {
-      p.pantalla.tint = Math.floor(t / 400) % 2 ? PANTALLA.trabajando : 0x2bb07a
-    } else if (p.esCoordinador) {
-      p.pantalla.tint = 0x8e9ab3
-    } else {
-      p.pantalla.tint = PANTALLA[p.estado]
-    }
+    this.animarSobres(paso)
   }
 
   private animarSobres(dtMs: number): void {
@@ -463,10 +695,11 @@ export class EscenaOficina {
       sobre.t = Math.min(1, sobre.t + dtMs / DURACION_SOBRE_MS)
       const t = sobre.t
       const suave = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2
-      const distancia = Math.hypot(sobre.hasta.x - sobre.desde.x, sobre.hasta.y - sobre.desde.y)
-      const arco = Math.min(90, 20 + distancia * 0.25)
-      sobre.g.x = sobre.desde.x + (sobre.hasta.x - sobre.desde.x) * suave
-      sobre.g.y = sobre.desde.y + (sobre.hasta.y - sobre.desde.y) * suave - Math.sin(Math.PI * t) * arco
+      const desde = { x: sobre.de.pos.x, y: sobre.de.pos.y - 26 }
+      const hasta = { x: sobre.para.pos.x, y: sobre.para.pos.y - 26 }
+      const arco = Math.min(40, 10 + Math.hypot(hasta.x - desde.x, hasta.y - desde.y) * 0.25)
+      sobre.g.x = desde.x + (hasta.x - desde.x) * suave
+      sobre.g.y = desde.y + (hasta.y - desde.y) * suave - Math.sin(Math.PI * t) * arco
       sobre.g.rotation = Math.sin(Math.PI * t * 2) * 0.3
     }
     if (!this.sobres.some((s) => s.t >= 1)) return

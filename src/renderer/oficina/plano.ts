@@ -1,423 +1,551 @@
-import { Container, Graphics, Text, type TextStyleOptions } from 'pixi.js'
-import type { Orientacion } from './personajes'
+import type { Texture } from 'pixi.js'
+import { Lienzo, aclarar, oscurecer } from '../pixel/lienzo'
 
 /**
- * Plano de la oficina, inspirado en Dunder Mifflin Scranton: la recepción de
- * Pam junto a la entrada, la oficina de Michael al lado, Jim frente a Dwight,
- * Phyllis frente a Stanley, el rincón de contabilidad junto a la cocina y el
- * anexo al fondo con Kelly, Ryan y Toby.
+ * Plano de la oficina en pixeles, inspirado en Dunder Mifflin Scranton y con
+ * la paleta de Munder Difflin: baldosas verde salvia, muros blancos con
+ * contorno oscuro y la pared del fondo con ventanas, reloj y calendario.
+ * Todas las medidas estan en pixeles de arte; la escena los amplia sin suavizar.
  */
+
+export const ANCHO = 432
+export const ALTO = 272
+/** Altura de la pared del fondo, dibujada por encima de y = 0. */
+export const ALTO_PARED = 22
+export const LIMITES = { x: -8, y: -ALTO_PARED - 4, ancho: ANCHO + 16, alto: ALTO + ALTO_PARED + 12 }
 
 export type Mueble = 'normal' | 'ejecutivo' | 'recepcion'
 export type Objeto = 'taza' | 'dulces' | 'gelatina' | 'gato' | 'bombones' | 'crucigrama' | 'tejido' | 'revista'
+export type Mirada = 'frente' | 'espalda' | 'izquierda' | 'derecha'
 
 export interface Asiento {
-  x: number
-  y: number
-  orientacion: Orientacion
-  mueble?: Mueble
+  /** Esquina superior izquierda del escritorio. */
+  dx: number
+  dy: number
+  mueble: Mueble
   objeto?: Objeto
 }
 
-export const ANCHO = 1000
-export const ALTO = 620
+export interface Punto {
+  x: number
+  y: number
+}
 
-/** Zona visible completa (incluye el pasillo de la entrada y los muros). */
-export const LIMITES = { x: -22, y: -54, ancho: ANCHO + 44, alto: ALTO + 72 }
+export interface Rect {
+  x: number
+  y: number
+  w: number
+  h: number
+}
+
+// ----------------------------------------------------------------- paleta
+
+const BALDOSA = 0x879c8b
+const JUNTA = 0x7d9282
+const ROMBO = 0x688681
+const BALDOSA_COCINA = 0xc9c1ad
+const JUNTA_COCINA = 0xb3aa94
+const MURO = 0xfffeff
+const MURO_CARA = 0xe8e3ea
+const MURO_BORDE = 0x282729
+const PARED_FONDO = 0xf5f1ea
+const PARED_FONDO_SOMBRA = 0xe3ddd3
+const VIDRIO = 0x9fc6e8
+const VIDRIO_BRILLO = 0xd6ecff
+const MARCO = 0x3a3a4a
+const MADERA = 0xd8a766
+const MADERA_LUZ = 0xe8c08a
+const MADERA_BORDE = 0xa8743f
+const MADERA_FRENTE = 0xb98450
+const MADERA_PATA = 0x8a5a33
+const MONITOR = 0x3b2a33
+const MONITOR_LUZ = 0x5a4450
+const TECLADO = 0xd9d4cf
+const TECLAS = 0xb5ada6
+const SILLA = 0xc49a5c
+const SILLA_RESPALDO = 0xa97a42
+const CIRUELA = 0x803c56
+const CIRUELA_LUZ = 0x9c4f6e
+const HOJA = 0x4f9a5c
+const HOJA_OSCURA = 0x2f6e44
+const MACETA = 0xb07048
+
+// --------------------------------------------------------------- asientos
 
 export const ASIENTOS: Record<string, Asiento> = {
-  michael: { x: 115, y: 82, orientacion: 'frente', mueble: 'ejecutivo', objeto: 'taza' },
-  pam: { x: 335, y: 72, orientacion: 'frente', mueble: 'recepcion', objeto: 'dulces' },
-  andy: { x: 115, y: 245, orientacion: 'frente' },
-  dwight: { x: 300, y: 250, orientacion: 'derecha', objeto: 'gelatina' },
-  jim: { x: 424, y: 250, orientacion: 'izquierda' },
-  phyllis: { x: 300, y: 365, orientacion: 'derecha', objeto: 'tejido' },
-  stanley: { x: 424, y: 365, orientacion: 'izquierda', objeto: 'crucigrama' },
-  angela: { x: 675, y: 248, orientacion: 'frente', objeto: 'gato' },
-  oscar: { x: 614, y: 368, orientacion: 'derecha' },
-  kevin: { x: 736, y: 368, orientacion: 'izquierda', objeto: 'bombones' },
-  creed: { x: 95, y: 530, orientacion: 'frente' },
-  meredith: { x: 215, y: 530, orientacion: 'frente' },
-  kelly: { x: 855, y: 272, orientacion: 'frente', objeto: 'revista' },
-  ryan: { x: 948, y: 272, orientacion: 'frente' },
-  toby: { x: 900, y: 412, orientacion: 'frente' }
+  michael: { dx: 30, dy: 30, mueble: 'ejecutivo', objeto: 'taza' },
+  pam: { dx: 146, dy: 26, mueble: 'recepcion', objeto: 'dulces' },
+  andy: { dx: 8, dy: 100, mueble: 'normal' },
+  dwight: { dx: 112, dy: 100, mueble: 'normal', objeto: 'gelatina' },
+  jim: { dx: 150, dy: 100, mueble: 'normal' },
+  phyllis: { dx: 112, dy: 150, mueble: 'normal', objeto: 'tejido' },
+  stanley: { dx: 150, dy: 150, mueble: 'normal', objeto: 'crucigrama' },
+  creed: { dx: 8, dy: 206, mueble: 'normal' },
+  meredith: { dx: 46, dy: 206, mueble: 'normal' },
+  angela: { dx: 277, dy: 100, mueble: 'normal', objeto: 'gato' },
+  oscar: { dx: 258, dy: 150, mueble: 'normal' },
+  kevin: { dx: 296, dy: 150, mueble: 'normal', objeto: 'bombones' },
+  kelly: { dx: 352, dy: 100, mueble: 'normal', objeto: 'revista' },
+  ryan: { dx: 392, dy: 100, mueble: 'normal' },
+  toby: { dx: 372, dy: 156, mueble: 'normal' }
 }
 
-/** Escritorios para agentes que no son del reparto, en orden de uso. */
+/** Escritorios vacios; los ocupan los agentes que no son del reparto, en este orden. */
 export const ASIENTOS_LIBRES: Asiento[] = [
-  { x: 340, y: 530, orientacion: 'frente' },
-  { x: 460, y: 530, orientacion: 'frente' },
-  { x: 855, y: 545, orientacion: 'frente' },
-  { x: 948, y: 545, orientacion: 'frente' },
-  { x: 520, y: 250, orientacion: 'frente' },
-  { x: 520, y: 365, orientacion: 'frente' }
+  { dx: 196, dy: 100, mueble: 'normal' },
+  { dx: 196, dy: 150, mueble: 'normal' },
+  { dx: 112, dy: 206, mueble: 'normal' },
+  { dx: 150, dy: 206, mueble: 'normal' },
+  { dx: 352, dy: 212, mueble: 'normal' },
+  { dx: 392, dy: 212, mueble: 'normal' },
+  { dx: 8, dy: 150, mueble: 'normal' }
 ]
 
-// ------------------------------------------------------------------ colores
+const ANCHO_MUEBLE: Record<Mueble, number> = { normal: 36, ejecutivo: 46, recepcion: 50 }
+const CENTRO_PERSONA: Record<Mueble, number> = { normal: 12, ejecutivo: 15, recepcion: 18 }
 
-const MURO = 0xb9ae98
-const MURO_EXTERIOR = 0x8f8573
-const VIDRIO = 0x8fb8de
-const ALFOMBRA = 0x3e4659
-const MADERA = 0x9a7a55
-const SILLA = 0x2e3440
-
-const estiloSala: TextStyleOptions = {
-  fontFamily: 'system-ui, sans-serif',
-  fontSize: 11,
-  fontWeight: '600',
-  letterSpacing: 0.5,
-  fill: 0xaab4c8
+/** Donde quedan los pies del personaje sentado (el escritorio le tapa las piernas). */
+export function puntoSentado(a: Asiento): Punto {
+  return { x: a.dx + CENTRO_PERSONA[a.mueble], y: a.dy + 18 }
 }
 
-function rotulo(texto: string, x: number, y: number, estilo: Partial<TextStyleOptions> = {}): Text {
-  const t = new Text({ text: texto, style: { ...estiloSala, ...estilo }, resolution: 4 })
-  t.anchor.set(0.5)
-  t.position.set(x, y)
-  return t
-}
-
-// ------------------------------------------------------------------- piezas
-
-const GROSOR = 6
-
-function muroH(g: Graphics, x1: number, x2: number, y: number): void {
-  g.rect(x1, y - GROSOR / 2, x2 - x1, GROSOR).fill(MURO)
-}
-
-function muroV(g: Graphics, x: number, y1: number, y2: number): void {
-  g.rect(x - GROSOR / 2, y1, GROSOR, y2 - y1).fill(MURO)
-}
-
-function ventanaH(g: Graphics, x1: number, x2: number, y: number, grosor = 4): void {
-  g.rect(x1, y - grosor / 2, x2 - x1, grosor).fill(VIDRIO)
-  for (let x = x1 + 22; x < x2; x += 22) g.rect(x - 0.75, y - grosor / 2, 1.5, grosor).fill(0xe6eef7)
-}
-
-function ventanaV(g: Graphics, x: number, y1: number, y2: number, grosor = 4): void {
-  g.rect(x - grosor / 2, y1, grosor, y2 - y1).fill(VIDRIO)
-  for (let y = y1 + 22; y < y2; y += 22) g.rect(x - grosor / 2, y - 0.75, grosor, 1.5).fill(0xe6eef7)
-}
-
-/** Persianas de las ventanas interiores (oficina de Michael y sala de conferencias). */
-function persianaH(g: Graphics, x1: number, x2: number, y: number): void {
-  g.rect(x1, y - 2, x2 - x1, 4).fill(0xc9d6e3)
-  for (let x = x1 + 3; x < x2; x += 4) g.rect(x, y - 2, 1, 4).fill(0x9fb0c2)
-}
-
-function puerta(g: Graphics, x: number, y: number, ancho: number, hacia: 'abajo' | 'arriba' | 'derecha' | 'izquierda'): void {
-  const trazo = { width: 1, color: 0x7d8699, alpha: 0.8 }
-  switch (hacia) {
-    case 'abajo':
-      g.moveTo(x, y).lineTo(x, y + ancho).stroke(trazo)
-      g.moveTo(x, y + ancho).arc(x, y, ancho, Math.PI / 2, 0, true).stroke({ ...trazo, alpha: 0.4 })
-      break
-    case 'arriba':
-      g.moveTo(x, y).lineTo(x, y - ancho).stroke(trazo)
-      g.moveTo(x, y - ancho).arc(x, y, ancho, -Math.PI / 2, 0).stroke({ ...trazo, alpha: 0.4 })
-      break
-    case 'derecha':
-      g.moveTo(x, y).lineTo(x + ancho, y).stroke(trazo)
-      g.moveTo(x + ancho, y).arc(x, y, ancho, 0, Math.PI / 2).stroke({ ...trazo, alpha: 0.4 })
-      break
-    case 'izquierda':
-      g.moveTo(x, y).lineTo(x - ancho, y).stroke(trazo)
-      g.moveTo(x - ancho, y).arc(x, y, ancho, Math.PI, Math.PI / 2, true).stroke({ ...trazo, alpha: 0.4 })
-      break
+/** Pantalla del monitor, para teñirla segun el estado del agente. */
+export function pantallaDe(a: Asiento): Rect {
+  switch (a.mueble) {
+    case 'ejecutivo':
+      return { x: a.dx + 34, y: a.dy + 2, w: 9, h: 7 }
+    case 'recepcion':
+      return { x: a.dx + 38, y: a.dy + 4, w: 9, h: 7 }
+    default:
+      return { x: a.dx + 24, y: a.dy + 2, w: 9, h: 7 }
   }
 }
 
-function planta(g: Graphics, x: number, y: number): void {
-  g.roundRect(x - 7, y + 2, 14, 10, 3).fill(0x8a5a3c)
-  g.circle(x, y - 3, 11).fill(0x3f8f55)
-  g.circle(x - 6, y - 7, 7).circle(x + 5, y - 9, 6).fill(0x4fae68)
+export function anchoMueble(a: Asiento): number {
+  return ANCHO_MUEBLE[a.mueble]
 }
 
-function sillaSuelta(g: Graphics, x: number, y: number): void {
-  g.roundRect(x - 8, y - 8, 16, 16, 4).fill(SILLA)
-  g.roundRect(x - 8, y - 8, 16, 5, 2).fill(0x3a4150)
+// ---------------------------------------------------- puntos de interes
+
+export interface Actividad {
+  punto: Punto
+  mirada: Mirada
+  frases: string[]
 }
 
-function archivero(g: Graphics, x: number, y: number, ancho: number, alto: number): void {
-  g.roundRect(x, y, ancho, alto, 2).fill(0x8b93a3)
-  const cajones = Math.max(1, Math.round(alto / 18))
-  for (let i = 1; i < cajones; i++) g.rect(x + 1, y + (alto / cajones) * i - 0.5, ancho - 2, 1).fill(0x6b7383)
-  for (let i = 0; i < cajones; i++) g.rect(x + ancho / 2 - 3, y + (alto / cajones) * i + 3, 6, 1.5).fill(0xd6dbe4)
+/** Lugares a los que los personajes van cuando no tienen trabajo. */
+export const ACTIVIDADES: Actividad[] = [
+  { punto: { x: 312, y: 256 }, mirada: 'espalda', frases: ['preparando un café', 'otro café más'] },
+  { punto: { x: 272, y: 256 }, mirada: 'espalda', frases: ['lavando la taza'] },
+  { punto: { x: 330, y: 244 }, mirada: 'espalda', frases: ['buscando su almuerzo', '¿quién se comió mi yogur?'] },
+  { punto: { x: 294, y: 236 }, mirada: 'frente', frases: ['tomando un descanso'] },
+  { punto: { x: 401, y: 40 }, mirada: 'espalda', frases: ['sacudiéndola. suave. con respeto.', 'se atoró otra vez'] },
+  { punto: { x: 420, y: 40 }, mirada: 'espalda', frases: ['comprando un refresco'] },
+  { punto: { x: 226, y: 76 }, mirada: 'derecha', frases: ['tomando agua', 'charla junto al garrafón'] },
+  { punto: { x: 118, y: 80 }, mirada: 'espalda', frases: ['sacando copias', 'la copiadora otra vez'] },
+  { punto: { x: 26, y: 262 }, mirada: 'izquierda', frases: ['regando las plantas'] },
+  { punto: { x: 232, y: 262 }, mirada: 'derecha', frases: ['regando las plantas'] },
+  { punto: { x: 170, y: 72 }, mirada: 'espalda', frases: ['platicando con Pam', 'dejando un paquete en recepción'] },
+  { punto: { x: 294, y: 70 }, mirada: 'espalda', frases: ['preparando la junta', 'revisando la sala'] },
+  { punto: { x: 58, y: 76 }, mirada: 'espalda', frases: ['reportándose con Michael', 'que no me vea Michael'] }
+]
+
+export const FRASES_VISITA = [
+  '¿viste la junta de hoy?',
+  '¿tienes un minuto?',
+  'te traje un café',
+  'pregunta rápida…',
+  '¿revisaste mi PR?'
+]
+
+/** Donde se para alguien que visita un escritorio. */
+export function puntoVisita(a: Asiento): Punto {
+  return { x: a.dx + CENTRO_PERSONA[a.mueble], y: a.dy + 38 }
 }
 
-// -------------------------------------------------------------------- plano
+// ------------------------------------------------------------- obstaculos
 
-export function dibujarPlano(): Container {
-  const plano = new Container()
-  const suelo = new Graphics()
-  const g = new Graphics()
+/** Rectangulos del piso por los que no se puede caminar. */
+export function obstaculos(asientos: Asiento[]): Rect[] {
+  const muros: Rect[] = [
+    // Oficina de Michael
+    { x: 100, y: 0, w: 5, h: 86 },
+    { x: 0, y: 80, w: 72, h: 6 },
+    { x: 92, y: 80, w: 13, h: 6 },
+    // Sala de conferencias
+    { x: 240, y: 0, w: 5, h: 86 },
+    { x: 240, y: 80, w: 10, h: 6 },
+    { x: 272, y: 80, w: 77, h: 6 },
+    // Sala de descanso y anexo
+    { x: 344, y: 0, w: 5, h: 96 },
+    { x: 344, y: 80, w: 8, h: 6 },
+    { x: 374, y: 80, w: 58, h: 6 },
+    { x: 344, y: 120, w: 5, h: 116 },
+    { x: 344, y: 260, w: 5, h: 12 },
+    // Cocina
+    { x: 244, y: 200, w: 12, h: 6 },
+    { x: 282, y: 200, w: 62, h: 6 },
+    { x: 244, y: 200, w: 5, h: 72 }
+  ]
+  const muebles: Rect[] = [
+    { x: 4, y: 18, w: 14, h: 50 }, // sofá de Michael
+    { x: 108, y: 58, w: 20, h: 16 }, // fotocopiadora
+    { x: 230, y: 52, w: 10, h: 18 }, // dispensador
+    { x: 262, y: 30, w: 66, h: 30 }, // mesa de conferencias
+    { x: 360, y: 38, w: 30, h: 22 }, // mesa redonda
+    { x: 382, y: 0, w: 48, h: 30 }, // máquinas
+    { x: 250, y: 252, w: 80, h: 20 }, // encimera
+    { x: 322, y: 210, w: 22, h: 30 }, // refrigerador
+    { x: 276, y: 222, w: 36, h: 14 }, // mesa de cocina
+    { x: 4, y: 250, w: 14, h: 18 }, // plantas
+    { x: 226, y: 250, w: 14, h: 18 },
+    { x: 414, y: 250, w: 14, h: 18 },
+    { x: 86, y: 60, w: 12, h: 16 }
+  ]
+  const escritorios = asientos.map((a) => ({ x: a.dx, y: a.dy + 10, w: anchoMueble(a), h: 16 }))
+  return [...muros, ...muebles, ...escritorios]
+}
 
-  // ---- Suelos
-  suelo.rect(-10, -10, ANCHO + 20, ALTO + 20).fill(MURO_EXTERIOR)
-  suelo.rect(0, 0, ANCHO, ALTO).fill(ALFOMBRA)
-  for (let x = 0; x < ANCHO; x += 40) suelo.rect(x, 0, 1, ALTO).fill({ color: 0xffffff, alpha: 0.025 })
-  for (let y = 0; y < ALTO; y += 40) suelo.rect(0, y, ANCHO, 1).fill({ color: 0xffffff, alpha: 0.025 })
-  suelo.rect(0, 0, 230, 175).fill(0x4a4f63) // oficina de Michael
-  suelo.rect(560, 0, 230, 175).fill(0x434b5f) // sala de conferencias
-  suelo.rect(790, 0, 210, 175).fill(0x4d5263) // sala de descanso
-  suelo.rect(790, 175, 210, 445).fill(0x3b4254) // anexo
-  suelo.roundRect(575, 195, 200, 262, 10).fill(0x434c61) // contabilidad
-  suelo.roundRect(262, 36, 150, 96, 12).fill(0x4b5367) // alfombra de recepción
-  for (let x = 560; x < 790; x += 20) {
-    for (let y = 470; y < ALTO; y += 20) {
-      suelo.rect(x, y, 20, 20).fill(((x + y) / 20) % 2 === 0 ? 0x6b6f78 : 0x62666f) // cocina
+// ------------------------------------------------------------------ fondo
+
+function baldosas(l: Lienzo, ox: number, oy: number, x: number, y: number, w: number, h: number, cocina = false): void {
+  const base = cocina ? BALDOSA_COCINA : BALDOSA
+  const junta = cocina ? JUNTA_COCINA : JUNTA
+  l.r(ox + x, oy + y, w, h, base)
+  const lado = cocina ? 8 : 16
+  for (let tx = x - (x % lado); tx < x + w; tx += lado) {
+    for (let ty = y - (y % lado); ty < y + h; ty += lado) {
+      const px = ox + tx
+      const py = oy + ty
+      if (tx >= x && tx < x + w) l.r(px, Math.max(oy + y, py), 1, Math.min(lado, y + h - ty), junta)
+      if (ty >= y && ty < y + h) l.r(Math.max(ox + x, px), py, Math.min(lado, x + w - tx), 1, junta)
+      if (!cocina && tx >= x + 1 && ty >= y + 1 && tx < x + w - 1 && ty < y + h - 1) {
+        l.p(px, py - 1, ROMBO).p(px - 1, py, ROMBO).p(px, py, ROMBO).p(px + 1, py, ROMBO).p(px, py + 1, ROMBO)
+      }
+      if (cocina && ((tx + ty) / lado) % 2 === 0 && tx >= x && ty >= y) {
+        l.r(px + 1, py + 1, Math.min(lado - 1, x + w - tx - 1), Math.min(lado - 1, y + h - ty - 1), aclarar(base, 0.12))
+      }
     }
   }
-  // Pasillo de la entrada
-  suelo.rect(396, -46, 170, 36).fill(0x2c3140)
-  suelo.rect(396, -50, 170, 4).fill(MURO_EXTERIOR)
-  suelo.rect(470, -46, 44, 6).fill(0x8b93a3) // puertas del ascensor
-  suelo.rect(491.5, -46, 1, 6).fill(0x5b6273)
-  plano.addChild(suelo)
+}
 
-  // ---- Ventanas exteriores
-  ventanaH(g, 18, 212, -3, 5)
-  ventanaH(g, 578, 772, -3, 5)
-  ventanaH(g, 808, 990, -3, 5)
-  ventanaV(g, -3, 18, 158, 5)
-  ventanaV(g, -3, 196, 300, 5)
-  ventanaV(g, -3, 440, 600, 5)
-  ventanaH(g, 20, 540, ALTO + 3, 5)
-  ventanaH(g, 580, 770, ALTO + 3, 5)
-  ventanaH(g, 810, 990, ALTO + 3, 5)
-  ventanaV(g, ANCHO + 3, 196, 600, 5)
+function muroH(l: Lienzo, ox: number, oy: number, x: number, y: number, w: number): void {
+  l.r(ox + x, oy + y, w, 6, MURO_BORDE)
+  l.r(ox + x, oy + y + 1, w, 3, MURO)
+  l.r(ox + x, oy + y + 4, w, 1, MURO_CARA)
+}
 
-  // ---- Muros interiores
+function muroV(l: Lienzo, ox: number, oy: number, x: number, y: number, h: number): void {
+  l.r(ox + x, oy + y, 5, h, MURO_BORDE)
+  l.r(ox + x + 1, oy + y, 3, h, MURO)
+}
+
+/** Ventana interior con persianas, sobre un muro horizontal. */
+function persiana(l: Lienzo, ox: number, oy: number, x: number, y: number, w: number): void {
+  l.r(ox + x, oy + y + 1, w, 3, VIDRIO)
+  for (let i = x + 2; i < x + w; i += 3) l.r(ox + i, oy + y + 1, 1, 3, VIDRIO_BRILLO)
+}
+
+function ventanaFondo(l: Lienzo, x: number, y: number, w: number): void {
+  l.r(x, y, w, 12, MARCO)
+  const mitad = Math.floor((w - 3) / 2)
+  l.r(x + 1, y + 1, mitad, 10, VIDRIO).r(x + 2 + mitad, y + 1, w - 3 - mitad, 10, VIDRIO)
+  l.r(x + 2, y + 2, 3, 1, VIDRIO_BRILLO).r(x + 3 + mitad, y + 2, 3, 1, VIDRIO_BRILLO)
+  l.r(x + 1, y + 6, w - 2, 1, oscurecer(VIDRIO, 0.12))
+}
+
+/** Dibuja piso, muros y la pared del fondo. Devuelve la textura y su origen en el mundo. */
+export function dibujarFondo(): { textura: Texture; x: number; y: number } {
+  const ox = -LIMITES.x
+  const oy = -LIMITES.y
+  const l = new Lienzo(LIMITES.ancho, LIMITES.alto)
+
+  // Piso
+  baldosas(l, ox, oy, 0, 0, ANCHO, ALTO)
+  baldosas(l, ox, oy, 249, 206, 95, 66, true)
+
+  // Pared del fondo con ventanas, reloj y calendario
+  const pared = oy - ALTO_PARED
+  l.r(ox - 6, pared - 1, ANCHO + 12, ALTO_PARED + 1, MURO_BORDE)
+  l.r(ox - 5, pared, ANCHO + 10, ALTO_PARED - 1, PARED_FONDO)
+  l.r(ox - 5, oy - 4, ANCHO + 10, 3, PARED_FONDO_SOMBRA)
+  // Reloj y calendario (oficina de Michael)
+  l.r(ox + 6, pared + 5, 9, 9, MURO_BORDE).r(ox + 7, pared + 6, 7, 7, 0xd9483b).r(ox + 8, pared + 7, 5, 5, 0xfdf6ee)
+  l.r(ox + 10, pared + 8, 1, 3, MURO_BORDE).r(ox + 10, pared + 10, 2, 1, MURO_BORDE)
+  l.r(ox + 70, pared + 3, 13, 14, MURO_BORDE).r(ox + 71, pared + 4, 11, 12, 0xfdf6ee).r(ox + 71, pared + 4, 11, 3, 0xd9483b)
+  for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) l.p(ox + 73 + i * 3, pared + 9 + j * 2, 0x9a8f86)
+  ventanaFondo(l, ox + 24, pared + 5, 26)
+  // Letrero de recepción (el texto se pone encima como rotulo)
+  l.r(ox + 146, pared + 5, 50, 11, MURO_BORDE).r(ox + 147, pared + 6, 48, 9, 0x2d3748)
+  // Puerta de entrada (doble, de vidrio)
+  l.r(ox + 206, pared + 2, 28, ALTO_PARED - 2, MURO_BORDE)
+  l.r(ox + 207, pared + 3, 12, ALTO_PARED - 4, 0x6f8fb0).r(ox + 221, pared + 3, 12, ALTO_PARED - 4, 0x6f8fb0)
+  l.r(ox + 208, pared + 4, 2, 10, VIDRIO_BRILLO).r(ox + 222, pared + 4, 2, 10, VIDRIO_BRILLO)
+  l.r(ox + 217, pared + 11, 1, 3, 0xd6c28a).r(ox + 223, pared + 11, 1, 3, 0xd6c28a)
+  // Ventanas y pizarra
+  ventanaFondo(l, ox + 110, pared + 5, 26)
+  l.r(ox + 268, pared + 4, 50, 14, MURO_BORDE).r(ox + 269, pared + 5, 48, 12, 0xf8f8f4)
+  l.r(ox + 272, pared + 8, 20, 1, 0x4f8cff).r(ox + 272, pared + 11, 30, 1, 0xd9483b).r(ox + 272, pared + 14, 14, 1, 0x3a3a4a)
+  ventanaFondo(l, ox + 356, pared + 5, 22)
+
+  // Muros exteriores laterales e inferior
+  muroV(l, ox, oy, -5, -2, ALTO + 7)
+  muroV(l, ox, oy, ANCHO, -2, ALTO + 7)
+  muroH(l, ox, oy, -5, ALTO, ANCHO + 10)
+  l.r(ox + 190, oy + ALTO + 1, 30, 3, BALDOSA) // salida al almacén
+
   // Oficina de Michael
-  muroV(g, 230, 0, 175)
-  muroH(g, 0, 180, 175)
-  persianaH(g, 20, 160, 175)
-  puerta(g, 220, 178, 38, 'izquierda')
-  // Entrada desde el pasillo: puertas de vidrio en el muro superior
-  g.rect(440, -10, 70, 10).fill(0x2c3140)
-  g.rect(441, -6, 33, 3).rect(476, -6, 33, 3).fill({ color: VIDRIO, alpha: 0.9 })
+  muroV(l, ox, oy, 100, -2, 88)
+  muroH(l, ox, oy, 0, 80, 72)
+  muroH(l, ox, oy, 92, 80, 13)
+  persiana(l, ox, oy, 8, 80, 54)
   // Sala de conferencias
-  muroV(g, 560, 0, 175)
-  muroH(g, 610, 790, 175)
-  persianaH(g, 630, 775, 175)
-  puerta(g, 572, 178, 36, 'derecha')
-  // Sala de descanso
-  muroV(g, 790, 0, 175)
-  muroH(g, 840, 1000, 175)
-  puerta(g, 802, 172, 36, 'derecha')
-  // Anexo
-  muroV(g, 790, 175, 200)
-  muroV(g, 790, 240, 575)
-  muroV(g, 790, 612, ALTO)
-  puerta(g, 793, 202, 36, 'abajo')
-  puerta(g, 793, 577, 34, 'abajo')
+  muroV(l, ox, oy, 240, -2, 88)
+  muroH(l, ox, oy, 240, 80, 10)
+  muroH(l, ox, oy, 272, 80, 77)
+  persiana(l, ox, oy, 282, 80, 52)
+  // Sala de descanso y anexo
+  muroV(l, ox, oy, 344, -2, 98)
+  muroH(l, ox, oy, 344, 80, 8)
+  muroH(l, ox, oy, 374, 80, 58)
+  muroV(l, ox, oy, 344, 120, 116)
+  muroV(l, ox, oy, 344, 260, 12)
   // Cocina
-  muroH(g, 560, 600, 470)
-  muroH(g, 645, 790, 470)
-  muroV(g, 560, 470, ALTO)
-  puerta(g, 602, 467, 40, 'arriba')
+  muroH(l, ox, oy, 244, 200, 12)
+  muroH(l, ox, oy, 282, 200, 62)
+  muroV(l, ox, oy, 244, 200, 72)
 
-  // ---- Oficina de Michael
-  g.roundRect(8, 58, 24, 96, 6).fill(0x6d4c41) // sofá
-  g.roundRect(8, 58, 10, 96, 5).fill(0x5d4037)
-  g.roundRect(188, 6, 36, 34, 2).fill(0x6e4b33) // librero
-  for (let y = 14; y < 40; y += 9) g.rect(190, y, 32, 1.5).fill(0x4e3423)
-  g.rect(192, 8, 4, 5).rect(198, 8, 3, 5).rect(203, 8, 5, 5).fill(0xc0392b)
-  g.rect(192, 17, 6, 5).rect(200, 17, 3, 5).fill(0x2e86de)
-  sillaSuelta(g, 88, 142)
-  sillaSuelta(g, 142, 142)
-  planta(g, 210, 150)
-
-  // ---- Recepción
-  g.roundRect(298, 1, 74, 13, 3).fill(0x1f2430) // letrero
-  archivero(g, 238, 128, 34, 32) // fotocopiadora
-  g.rect(238, 128, 34, 8).fill(0xd6dbe4)
-  g.rect(242, 131, 22, 2).fill(0x2e86de)
-  sillaSuelta(g, 530, 26)
-  sillaSuelta(g, 530, 52)
-  g.roundRect(538, 118, 14, 26, 3).fill(0xe5ecf4) // dispensador de agua
-  g.roundRect(539, 110, 12, 12, 5).fill({ color: 0x74b9ff, alpha: 0.85 })
-  planta(g, 424, 138)
-
-  // ---- Sala de conferencias
-  g.rect(640, 5, 70, 5).fill(0xf4f6f8) // pizarra
-  const sillasMesa: Array<[number, number]> = [
-    [628, 50],
-    [660, 50],
-    [692, 50],
-    [724, 50],
-    [628, 128],
-    [660, 128],
-    [692, 128],
-    [724, 128],
-    [594, 89],
-    [758, 89]
-  ]
-  for (const [x, y] of sillasMesa) sillaSuelta(g, x, y)
-  g.roundRect(606, 60, 140, 58, 26).fill(0x7a5236)
-  g.roundRect(612, 64, 128, 50, 22).fill(0x8b6040)
-  g.roundRect(783, 50, 5, 70, 1).fill(0x14171f) // televisión
-
-  // ---- Sala de descanso
-  g.roundRect(876, 6, 38, 40, 3).fill(0xc0392b) // máquina de snacks
-  g.roundRect(880, 10, 24, 30, 2).fill(0x2d1b1b)
-  for (let y = 13; y < 38; y += 6) for (let x = 882; x < 902; x += 5) g.rect(x, y, 3, 3).fill(0xf5b041)
-  g.roundRect(920, 6, 38, 40, 3).fill(0x2e5aa8) // máquina de bebidas
-  g.roundRect(924, 10, 24, 30, 2).fill(0xdfe9f4)
-  for (let x = 926; x < 946; x += 6) g.rect(x, 13, 4, 24).fill(0x3c8dde)
-  sillaSuelta(g, 880, 112)
-  sillaSuelta(g, 920, 112)
-  sillaSuelta(g, 900, 136)
-  g.circle(900, 110, 20).fill(0xd8d2c4)
-  planta(g, 978, 150)
-
-  // ---- Bullpen
-  archivero(g, 4, 310, 22, 110)
-  planta(g, 26, 205)
-  planta(g, 26, 455)
-  planta(g, 545, 455)
-
-  // ---- Contabilidad
-  archivero(g, 740, 200, 44, 22)
-
-  // ---- Cocina
-  g.roundRect(572, 588, 170, 28, 2).fill(0xcfd4dc) // encimera
-  g.roundRect(590, 594, 26, 16, 3).fill(0x9aa3b1) // fregadero
-  g.roundRect(640, 591, 28, 16, 2).fill(0x2b2f3a) // microondas
-  g.rect(643, 594, 18, 10).fill(0x4b5566)
-  g.roundRect(680, 592, 14, 16, 2).fill(0x1f2430) // cafetera
-  g.roundRect(744, 478, 40, 52, 3).fill(0xe8ecf1) // refrigerador
-  g.rect(744, 500, 40, 1.5).fill(0xb8c0cc)
-  g.rect(778, 484, 2, 12).rect(778, 504, 2, 18).fill(0x9aa3b1)
-  sillaSuelta(g, 600, 540)
-  sillaSuelta(g, 690, 540)
-  g.roundRect(612, 520, 66, 40, 6).fill(0xd8d2c4)
-
-  // ---- Anexo
-  archivero(g, 976, 330, 20, 70)
-  planta(g, 985, 604)
-
-  plano.addChild(g)
-
-  // ---- Rótulos
-  plano.addChild(
-    rotulo('DUNDER MIFFLIN', 335, 7.5, { fontSize: 7, fill: 0xf4f6f8, letterSpacing: 1 }),
-    rotulo('Entrada · Ascensor', 481, -30, { fontSize: 10, fill: 0x8b93a7 }),
-    rotulo('Oficina de Michael', 115, 164),
-    rotulo('Recepción', 478, 112),
-    rotulo('Sala de conferencias', 675, 163),
-    rotulo('Sala de descanso', 900, 163),
-    rotulo('Contabilidad', 675, 443),
-    rotulo('Cocina', 715, 488),
-    rotulo('Anexo', 900, 196)
-  )
-
-  return plano
+  return { textura: l.textura(), x: LIMITES.x, y: LIMITES.y }
 }
 
-// ---------------------------------------------------------------- mobiliario
+// ---------------------------------------------------------------- muebles
 
-/** Escritorio visto de frente: el personaje queda detras y asoma de la cintura para arriba. */
-export function escritorioFrente(g: Graphics, mueble: Mueble): { etiquetaY: number } {
-  switch (mueble) {
-    case 'ejecutivo':
-      g.roundRect(-62, -8, 124, 20, 3).fill(0x7a5236)
-      g.roundRect(-62, 12, 124, 18, 2).fill(0x5e3e28)
-      g.rect(-58, 14, 116, 1.5).fill(0x8b6040)
-      return { etiquetaY: 42 }
-    case 'recepcion':
-      g.roundRect(-50, -8, 100, 16, 3).fill(0xb89a74)
-      g.roundRect(-56, 8, 112, 26, 4).fill(0x8c6d4d)
-      g.roundRect(-58, 4, 116, 6, 3).fill(0xd8c3a0)
-      return { etiquetaY: 46 }
-    default:
-      g.roundRect(-44, -8, 88, 18, 3).fill(MADERA)
-      g.roundRect(-44, 10, 88, 16, 2).fill(0x7a5f42)
-      return { etiquetaY: 38 }
-  }
+export interface MuebleSuelto {
+  textura: Texture
+  x: number
+  y: number
+  /** Coordenada y de la base, para ordenar por profundidad. */
+  base: number
 }
 
-export function sillaFrente(g: Graphics): void {
-  g.roundRect(-17, -40, 34, 36, 8).fill(SILLA)
+function sprite(l: Lienzo, x: number, y: number, base?: number): MuebleSuelto {
+  const c = l.contornear()
+  return { textura: c.textura(), x: x - 1, y: y - 1, base: base ?? y + l.alto }
 }
 
-/** Escritorio de lado: el personaje mira hacia la derecha (se refleja para la izquierda). */
-export function escritorioLado(g: Graphics): void {
-  g.roundRect(12, -30, 52, 24, 3).fill(MADERA)
-  g.roundRect(12, -6, 52, 10, 2).fill(0x7a5f42)
+function monitor(l: Lienzo, x: number, y: number): void {
+  l.r(x, y, 13, 11, MONITOR).r(x + 1, y + 1, 11, 1, MONITOR_LUZ)
+  l.r(x + 2, y + 2, 9, 7, 0x341422)
+  l.r(x + 4, y + 11, 5, 2, MONITOR)
 }
 
-export function sillaLado(g: Graphics): void {
-  g.roundRect(-18, -32, 7, 32, 3).fill(SILLA)
-  g.roundRect(-14, -2, 24, 9, 4).fill(0x353c4a)
+function teclado(l: Lienzo, x: number, y: number): void {
+  l.r(x, y, 13, 3, TECLADO)
+  for (let i = 1; i < 12; i += 2) l.p(x + i, y + 1, TECLAS)
+  l.r(x + 15, y + 1, 2, 2, TECLADO)
 }
 
-export function monitor(marco: Graphics, pantalla: Graphics, x: number, y: number): void {
-  marco.roundRect(x, y, 24, 18, 2).fill(0x14171f)
-  marco.rect(x + 10, y + 18, 4, 5).fill(0x14171f)
-  pantalla.roundRect(x + 2, y + 2, 20, 14, 1).fill(0xffffff)
-}
-
-export function teclado(g: Graphics, x: number, y: number, ancho: number): void {
-  g.roundRect(x, y, ancho, 6, 1.5).fill(0xd5d9e0)
-  g.rect(x + 2, y + 2, ancho - 4, 1).fill(0xaeb5c1)
-}
-
-export function objeto(g: Graphics, tipo: Objeto, x: number, y: number): void {
-  switch (tipo) {
+function objetoEnMesa(l: Lienzo, objeto: Objeto, x: number, y: number): void {
+  switch (objeto) {
     case 'taza':
-      g.roundRect(x - 4, y - 7, 8, 9, 2).fill(0xf4f6f8)
-      g.circle(x + 5, y - 3, 2.6).stroke({ width: 1.2, color: 0xf4f6f8 })
-      g.rect(x - 2.5, y - 4, 5, 1).fill(0x2b2f3a)
+      l.r(x, y, 4, 4, 0xf4f6f8).r(x + 4, y + 1, 1, 2, 0xf4f6f8).r(x + 1, y + 1, 2, 1, 0x2b2f3a)
       break
     case 'dulces':
-      g.circle(x, y - 4, 6).fill({ color: 0xcfe6f5, alpha: 0.7 })
-      for (const [dx, dy, c] of [
-        [-2, -3, 0xe74c3c],
-        [2, -5, 0xf1c40f],
-        [0, -1, 0x2ecc71],
-        [3, -1, 0x9b59b6],
-        [-3, -6, 0x3498db]
-      ]) {
-        g.circle(x + dx, y + dy, 1.4).fill(c)
-      }
-      g.rect(x - 4, y - 11, 8, 2).fill(0xe5ecf4)
+      l.r(x, y - 1, 6, 5, 0xcfe6f5).r(x + 1, y + 1, 1, 1, 0xe74c3c).r(x + 3, y, 1, 1, 0xf1c40f)
+      l.r(x + 4, y + 2, 1, 1, 0x2ecc71).r(x + 2, y + 3, 1, 1, 0x9b59b6).r(x + 1, y - 2, 4, 1, 0xe5ecf4)
       break
     case 'gelatina':
-      g.roundRect(x - 7, y - 8, 14, 11, 2).fill({ color: 0xd4e157, alpha: 0.9 })
-      g.roundRect(x - 4, y - 4, 8, 3, 1).fill(0x2b2f3a)
+      l.r(x, y - 1, 7, 5, 0xd4e157).r(x + 2, y + 1, 3, 1, 0x3a3a44).r(x + 1, y - 1, 2, 1, aclarar(0xd4e157, 0.4))
       break
     case 'gato':
-      g.roundRect(x - 5, y - 10, 10, 10, 1).fill(0xe7a1c0)
-      g.rect(x - 3.5, y - 8.5, 7, 7).fill(0xf5e8ee)
-      g.circle(x, y - 4, 2.2).poly([x - 2, y - 5.5, x - 1, y - 8, x, y - 5.5]).poly([x, y - 5.5, x + 1, y - 8, x + 2, y - 5.5]).fill(0x4b4f58)
+      l.r(x, y - 2, 5, 6, 0xe7a1c0).r(x + 1, y - 1, 3, 4, 0xf5e8ee).r(x + 1, y + 1, 3, 2, 0x4b4f58).p(x + 1, y, 0x4b4f58).p(x + 3, y, 0x4b4f58)
       break
     case 'bombones':
-      g.ellipse(x, y - 2, 7, 4).fill(0xeeeeee)
-      for (const [dx, c] of [
-        [-4, 0xe74c3c],
-        [-1, 0xf1c40f],
-        [2, 0x2ecc71],
-        [4.5, 0x3498db]
-      ]) {
-        g.circle(x + dx, y - 3, 1.5).fill(c)
-      }
+      l.r(x, y + 1, 7, 3, 0xeeeeee).p(x + 1, y + 1, 0xe74c3c).p(x + 3, y + 1, 0xf1c40f).p(x + 5, y + 1, 0x3498db).p(x + 2, y, 0x2ecc71)
       break
     case 'crucigrama':
-      g.rect(x - 6, y - 8, 12, 10).fill(0xf4f6f8)
-      for (let i = 1; i < 4; i++) {
-        g.rect(x - 6 + i * 3, y - 8, 0.6, 10).rect(x - 6, y - 8 + i * 2.5, 12, 0.6)
-      }
-      g.fill(0x6b7383)
+      l.r(x, y, 7, 5, 0xf4f6f8).r(x + 2, y, 1, 5, 0x9aa3b1).r(x + 4, y, 1, 5, 0x9aa3b1).r(x, y + 2, 7, 1, 0x9aa3b1)
       break
     case 'tejido':
-      g.circle(x, y - 3, 4.5).fill(0xb56576)
-      g.moveTo(x - 3, y - 5).quadraticCurveTo(x, y - 1, x + 3, y - 6).stroke({ width: 0.8, color: 0x8e4a5a })
-      g.moveTo(x + 2, y - 10).lineTo(x + 6, y).stroke({ width: 1, color: 0xd8d2c4 })
+      l.r(x, y, 5, 4, 0xb56576).p(x + 1, y + 1, 0x8e4a5a).p(x + 3, y + 2, 0x8e4a5a).r(x + 5, y - 2, 1, 5, 0xd8d2c4)
       break
     case 'revista':
-      g.rect(x - 6, y - 8, 12, 9).fill(0xff6fb5)
-      g.rect(x - 4, y - 6, 8, 1.5).rect(x - 4, y - 3, 5, 1).fill(0xffffff)
+      l.r(x, y, 7, 5, 0xff6fb5).r(x + 1, y + 1, 5, 1, 0xffffff).r(x + 1, y + 3, 3, 1, 0xffffff)
       break
   }
 }
+
+/** Escritorio visto de frente, con monitor CRT, teclado y el objeto del personaje. */
+export function escritorio(a: Asiento): MuebleSuelto {
+  const w = anchoMueble(a)
+  if (a.mueble === 'recepcion') {
+    const l = new Lienzo(w, 34)
+    monitor(l, 36, 2)
+    l.r(0, 12, w, 5, 0xe6c89a).r(0, 12, w, 1, aclarar(0xe6c89a, 0.3))
+    l.r(0, 17, w, 13, 0xa57a4a).r(0, 17, w, 2, 0xc9a06a)
+    for (let x = 6; x < w; x += 12) l.r(x, 21, 1, 8, oscurecer(0xa57a4a, 0.15))
+    l.r(0, 30, w, 2, 0x5f4228)
+    teclado(l, 10, 13)
+    if (a.objeto) objetoEnMesa(l, a.objeto, 2, 10)
+    l.r(28, 10, 5, 3, 0x2b2f3a).r(29, 9, 3, 1, 0x2b2f3a)
+    return sprite(l, a.dx, a.dy, a.dy + 32)
+  }
+  const ejecutivo = a.mueble === 'ejecutivo'
+  const tapa = ejecutivo ? 0x9c6a3f : MADERA
+  const frente = ejecutivo ? 0x7a4f2c : MADERA_FRENTE
+  const l = new Lienzo(w, 26)
+  monitor(l, w - 14, 0)
+  l.r(0, 10, w, 7, tapa).r(0, 10, w, 1, ejecutivo ? aclarar(tapa, 0.2) : MADERA_LUZ).r(0, 16, w, 1, MADERA_BORDE)
+  l.r(0, 17, w, 7, frente).r(0, 17, 3, 7, MADERA_PATA).r(w - 3, 17, 3, 7, MADERA_PATA)
+  l.r(8, 19, w - 16, 1, oscurecer(frente, 0.2))
+  l.r(0, 24, w, 2, oscurecer(MADERA_PATA, 0.3))
+  teclado(l, 6, 12)
+  if (a.objeto) objetoEnMesa(l, a.objeto, 1, 11)
+  if (ejecutivo) l.r(w - 22, 13, 6, 3, 0x2e8b57).r(w - 22, 13, 6, 1, 0x3fae6e)
+  return sprite(l, a.dx, a.dy, a.dy + 26)
+}
+
+/** Silla detras del escritorio: se ve el respaldo alrededor de los hombros. */
+export function silla(a: Asiento): MuebleSuelto {
+  const l = new Lienzo(16, 18)
+  l.redondo(1, 0, 14, 10, SILLA_RESPALDO).r(3, 2, 10, 6, SILLA)
+  l.r(0, 10, 16, 4, SILLA).r(0, 10, 16, 1, aclarar(SILLA, 0.25))
+  l.r(2, 14, 2, 4, MADERA_PATA).r(12, 14, 2, 4, MADERA_PATA)
+  const centro = puntoSentado(a).x
+  return sprite(l, centro - 8, a.dy + 2, a.dy + 17)
+}
+
+function planta(x: number, y: number, grande = false): MuebleSuelto {
+  const l = new Lienzo(14, grande ? 22 : 18)
+  const alto = l.alto
+  l.r(3, alto - 7, 8, 7, MACETA).r(2, alto - 8, 10, 2, aclarar(MACETA, 0.2))
+  l.r(6, 0, 2, alto - 8, HOJA_OSCURA)
+  l.r(2, 3, 4, 3, HOJA).r(8, 2, 4, 3, HOJA).r(1, 7, 5, 3, HOJA_OSCURA).r(8, 6, 5, 3, HOJA).r(4, alto - 12, 6, 4, HOJA)
+  l.p(3, 3, aclarar(HOJA, 0.3)).p(9, 2, aclarar(HOJA, 0.3))
+  return sprite(l, x, y)
+}
+
+function sillaCiruela(x: number, y: number): MuebleSuelto {
+  const l = new Lienzo(10, 11)
+  l.redondo(0, 0, 10, 7, CIRUELA).r(1, 1, 8, 2, CIRUELA_LUZ).r(1, 7, 8, 2, oscurecer(CIRUELA, 0.2)).r(1, 9, 2, 2, MONITOR).r(7, 9, 2, 2, MONITOR)
+  return sprite(l, x, y)
+}
+
+function sillaVisita(x: number, y: number): MuebleSuelto {
+  const l = new Lienzo(12, 13)
+  l.r(0, 5, 12, 4, SILLA).redondo(1, 0, 10, 6, SILLA_RESPALDO).r(1, 9, 2, 4, MADERA_PATA).r(9, 9, 2, 4, MADERA_PATA)
+  return sprite(l, x, y)
+}
+
+/** Todo el mobiliario que no es un escritorio de agente. */
+export function mobiliario(): MuebleSuelto[] {
+  const piezas: MuebleSuelto[] = []
+
+  // Oficina de Michael: sofá, librero y sillas de visita
+  {
+    const l = new Lienzo(14, 50)
+    l.r(0, 0, 14, 50, 0x6d4c41).r(0, 0, 5, 50, 0x5d4037).r(5, 3, 8, 21, 0x7d5a4d).r(5, 26, 8, 21, 0x7d5a4d)
+    piezas.push(sprite(l, 4, 18))
+  }
+  {
+    const l = new Lienzo(18, 24)
+    l.r(0, 0, 18, 24, 0x6e4b33)
+    for (let y = 6; y < 24; y += 6) l.r(1, y, 16, 1, 0x4e3423)
+    const libros = [0xc0392b, 0x2e86de, 0xf1c40f, 0x27ae60, 0x8e44ad]
+    for (let fila = 0; fila < 3; fila++) {
+      for (let i = 0; i < 5; i++) l.r(2 + i * 3, 1 + fila * 6, 2, 5, libros[(i + fila) % libros.length])
+    }
+    piezas.push(sprite(l, 80, 2))
+  }
+  piezas.push(sillaVisita(38, 64), sillaVisita(58, 64))
+  piezas.push(planta(86, 58))
+
+  // Recepción: fotocopiadora, dispensador de agua y sillas de espera
+  {
+    const l = new Lienzo(20, 16)
+    l.r(0, 3, 20, 13, 0xd6dbe4).r(0, 3, 20, 3, 0xb8c0cc).r(2, 0, 16, 3, 0x9aa3b1).r(3, 8, 10, 1, 0x2e86de).r(15, 8, 3, 2, 0x3fae6e)
+    piezas.push(sprite(l, 108, 58))
+  }
+  {
+    const l = new Lienzo(8, 18)
+    l.r(1, 0, 6, 7, 0x74b9ff).r(2, 1, 2, 4, 0xb7dcff).r(0, 7, 8, 11, 0xe5ecf4).r(2, 10, 4, 2, 0x9aa3b1)
+    piezas.push(sprite(l, 231, 52))
+  }
+  piezas.push(sillaVisita(212, 30), sillaVisita(226, 30))
+  piezas.push(planta(122, 2, true))
+
+  // Sala de conferencias
+  for (let i = 0; i < 5; i++) {
+    piezas.push(sillaCiruela(266 + i * 12, 22))
+    piezas.push(sillaCiruela(266 + i * 12, 56))
+  }
+  {
+    const l = new Lienzo(68, 26)
+    l.r(0, 0, 68, 22, 0xcfa46a).r(0, 0, 68, 1, aclarar(0xcfa46a, 0.3)).r(0, 22, 68, 4, 0xa07640)
+    l.r(26, 6, 14, 10, 0x9fc6e8).r(27, 7, 12, 8, 0xdfe9f4)
+    piezas.push(sprite(l, 262, 32))
+  }
+  piezas.push(planta(248, 58))
+
+  // Sala de descanso: máquinas y mesa redonda
+  {
+    const l = new Lienzo(18, 30)
+    l.r(0, 0, 18, 30, 0xc0392b).r(2, 3, 11, 20, 0x2d1b1b)
+    const snacks = [0xf5b041, 0x58d68d, 0xec7063, 0x5dade2]
+    for (let y = 5; y < 22; y += 5) for (let x = 3; x < 12; x += 3) l.r(x, y, 2, 3, snacks[(x + y) % 4])
+    l.r(14, 5, 3, 6, 0xd5d8dc).r(3, 25, 10, 3, 0x1b1010)
+    piezas.push(sprite(l, 392, 0, 30))
+  }
+  {
+    const l = new Lienzo(18, 30)
+    l.r(0, 0, 18, 30, 0x2e5aa8).r(2, 3, 11, 20, 0xdfe9f4)
+    for (let x = 3; x < 12; x += 3) l.r(x, 5, 2, 16, 0x3c8dde)
+    l.r(14, 5, 3, 6, 0xd5d8dc).r(3, 25, 10, 3, 0x14233f)
+    piezas.push(sprite(l, 411, 0, 30))
+  }
+  {
+    const l = new Lienzo(24, 16)
+    l.redondo(0, 0, 24, 12, 0xe4ddd0).r(2, 1, 20, 1, 0xf4efe6).r(10, 12, 4, 4, 0x8a8f99)
+    piezas.push(sillaVisita(356, 40), sillaVisita(386, 40))
+    piezas.push(sprite(l, 364, 40))
+  }
+  piezas.push(planta(420, 60))
+
+  // Cocina: encimera, refrigerador y mesa
+  {
+    const l = new Lienzo(80, 20)
+    l.r(0, 0, 80, 6, 0xcfd4dc).r(0, 6, 80, 14, 0xb8c0cc)
+    for (let x = 0; x < 80; x += 20) l.r(x, 8, 1, 12, 0x9aa3b1)
+    l.r(14, 1, 14, 4, 0x9aa3b1).r(19, 0, 2, 2, 0x7d8699) // fregadero
+    l.r(52, 0, 10, 5, 0x1f2430).r(54, 1, 4, 2, 0xd9483b) // cafetera
+    l.r(64, 0, 14, 6, 0x2b2f3a).r(65, 1, 9, 4, 0x4b5566) // microondas
+    piezas.push(sprite(l, 250, 252))
+  }
+  {
+    const l = new Lienzo(20, 30)
+    l.r(0, 0, 20, 30, 0xe8ecf1).r(0, 11, 20, 1, 0xb8c0cc).r(16, 4, 2, 5, 0x9aa3b1).r(16, 14, 2, 10, 0x9aa3b1)
+    piezas.push(sprite(l, 323, 210))
+  }
+  {
+    const l = new Lienzo(36, 14)
+    l.r(0, 0, 36, 10, 0xe4ddd0).r(0, 0, 36, 1, 0xf4efe6).r(0, 10, 36, 4, 0xc2b8a6)
+    piezas.push(sillaVisita(270, 214), sillaVisita(306, 214))
+    piezas.push(sprite(l, 276, 222))
+  }
+
+  // Plantas del bullpen y del anexo
+  piezas.push(planta(4, 250, true), planta(226, 250, true), planta(414, 250, true), planta(226, 90))
+
+  return piezas
+}
+
+/** Rotulos de las salas (texto). */
+export const ROTULOS: Array<{ texto: string; x: number; y: number; letrero?: boolean }> = [
+  { texto: 'DUNDER MIFFLIN', x: 171, y: -11, letrero: true },
+  { texto: 'Recepción', x: 196, y: 74 },
+  { texto: 'Sala de conferencias', x: 294, y: 74 },
+  { texto: 'Descanso', x: 372, y: 74 },
+  { texto: 'Contabilidad', x: 270, y: 194 },
+  { texto: 'Cocina', x: 270, y: 212 },
+  { texto: 'Anexo', x: 372, y: 262 }
+]

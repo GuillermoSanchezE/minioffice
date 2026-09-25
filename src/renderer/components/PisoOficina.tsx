@@ -26,7 +26,15 @@ export function PisoOficina({ agentes, seleccionado, onSeleccionar }: Props): JS
   }, [])
 
   useEffect(() => {
-    escenaRef.current?.sincronizar(agentes)
+    escenaRef.current?.sincronizar(
+      agentes.map((a) => ({
+        id: a.id,
+        personaje: a.id,
+        nombre: a.nombre,
+        estado: a.estado,
+        esCoordinador: a.esCoordinador
+      }))
+    )
   }, [agentes])
 
   useEffect(() => {

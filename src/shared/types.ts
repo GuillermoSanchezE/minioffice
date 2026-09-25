@@ -1,4 +1,4 @@
-export type AgentStatus = 'detenido' | 'iniciando' | 'inactivo' | 'trabajando' | 'error'
+export type AgentStatus = 'detenido' | 'iniciando' | 'inactivo' | 'trabajando' | 'esperando' | 'pausado' | 'error'
 
 export interface AgentDefinition {
   id: string

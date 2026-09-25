@@ -1,5 +1,5 @@
 import type { AgentStatus } from '../shared/types'
-import { aparienciaDe, colorPrincipal } from './oficina/personajes'
+import { aparienciaDe, colorPrincipal } from './pixel/personajes'
 
 /** Color que identifica al personaje: el de su camisa, saco o cardigan. */
 export function colorDeAgente(id: string): number {
@@ -27,17 +27,21 @@ export function aCss(color: number): string {
 }
 
 export const COLOR_ESTADO: Record<AgentStatus, number> = {
-  detenido: 0x6b7280,
-  iniciando: 0xfacc15,
-  inactivo: 0x60a5fa,
-  trabajando: 0x34d399,
-  error: 0xef4444
+  detenido: 0x9a8f86,
+  iniciando: 0xe0b020,
+  inactivo: 0x8a8fb8,
+  trabajando: 0xd9a441,
+  esperando: 0xe07a3a,
+  pausado: 0x7d8699,
+  error: 0xd0584e
 }
 
 export const ETIQUETA_ESTADO: Record<AgentStatus, string> = {
-  detenido: 'Dormido',
-  iniciando: 'Llegando…',
-  inactivo: 'En su escritorio',
-  trabajando: 'Trabajando',
-  error: 'Error'
+  detenido: 'dormido',
+  iniciando: 'iniciando',
+  inactivo: 'inactivo',
+  trabajando: 'trabajando',
+  esperando: 'esperando',
+  pausado: 'en pausa',
+  error: 'error'
 }
