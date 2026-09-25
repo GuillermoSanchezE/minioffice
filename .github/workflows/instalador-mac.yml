@@ -31,6 +31,15 @@ jobs:
       - name: Comprobar la firma ad hoc
         run: codesign --verify --deep --verbose=2 dist/mac-arm64/minioffice.app
 
+      - name: Comprobar el icono y la ventana del instalador
+        run: |
+          sips -g pixelWidth dist/mac-arm64/minioffice.app/Contents/Resources/icon.icns
+          hdiutil attach dist/minioffice-*-arm64.dmg -mountpoint /tmp/instalador -nobrowse -quiet
+          ls -la /tmp/instalador /tmp/instalador/.background
+          test -f /tmp/instalador/.VolumeIcon.icns
+          test -n "$(ls /tmp/instalador/.background)"
+          hdiutil detach /tmp/instalador -quiet
+
       - uses: actions/upload-artifact@v4
         with:
           name: minioffice-mac
