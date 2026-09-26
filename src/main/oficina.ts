@@ -27,6 +27,7 @@ import { ID_MICHAEL, REPARTO } from '../shared/reparto'
 import { comandoBase, proveedorDe, unirComando, ventanaDe } from '../shared/motores'
 import { cargarEquipo, guardarEquipo, normalizar } from './equipo'
 import { guardarPreferencias, leerPreferencias } from './preferencias'
+import { recordarConfianza, sanearAjustes, sanearEquipo } from './confianza'
 import { HiveStore, USUARIO, type PendienteDeEnvio } from './hive/hiveStore'
 import { MailboxRouter } from './hive/mailboxRouter'
 import { Sesiones } from './pty/sesiones'
@@ -111,12 +112,18 @@ export class Oficina extends EventEmitter {
 
   constructor(
     readonly raiz: string,
-    private ventana: () => BrowserWindow | null
+    private ventana: () => BrowserWindow | null,
+    /** Proyecto no confiable: sin comandos propios, webhook, horarios ni otras oficinas. */
+    readonly modoSeguro = false
   ) {
     super()
     this.hive = new HiveStore(raiz)
     this.defs = cargarEquipo(raiz)
     this.ajustesActuales = this.hive.leerAjustes()
+    if (modoSeguro) {
+      this.defs = sanearEquipo(this.defs, raiz)
+      this.ajustesActuales = sanearAjustes(this.ajustesActuales)
+    }
     // Las IA agregadas son de tu Mac, no del proyecto.
     this.ajustesActuales.motores = leerPreferencias().motores ?? this.ajustesActuales.motores ?? []
     this.consumo = new Consumo(this.hive.raiz)
@@ -161,6 +168,9 @@ export class Oficina extends EventEmitter {
     this.temporizadores.push(setInterval(() => this.tick(), TICK_MS))
     this.temporizadores.push(setInterval(() => this.revisarDisco(), REVISION_DISCO_MS))
     this.evento('sistema', `La oficina abrió con ${this.defs.length - 1} empleados`)
+    if (this.modoSeguro) {
+      this.evento('sistema', 'Modo seguro: sin comandos propios, webhook, horarios ni otras oficinas del archivo del proyecto')
+    }
     if (this.ajustesActuales.michaelAlIniciar) {
       const michael = this.def(ID_MICHAEL)
       if (michael) void this.iniciarAgente(michael)
@@ -215,6 +225,7 @@ export class Oficina extends EventEmitter {
     return {
       version: paquete.version,
       raiz: this.raiz,
+      modoSeguro: this.modoSeguro,
       agentes: this.agentes(),
       mensajes: this.mensajes,
       tareas: this.tareas,
@@ -583,6 +594,7 @@ export class Oficina extends EventEmitter {
 
   private guardarDefs(): void {
     guardarEquipo(this.raiz, this.defs)
+    if (!this.modoSeguro) recordarConfianza(this.raiz)
     this.hive.registrar(this.defs)
     this.emitir('agentes')
   }
@@ -704,6 +716,7 @@ export class Oficina extends EventEmitter {
     if (cambios.motores) guardarPreferencias({ motores: siguiente.motores })
     this.ajustesActuales = siguiente
     this.hive.guardarAjustes(siguiente)
+    if (!this.modoSeguro) recordarConfianza(this.raiz)
     this.disparadores.aplicar()
     this.emitir('ajustes')
   }
@@ -728,7 +741,8 @@ Todo en español.`
     const crudo = JSON.parse(json) as Partial<AgentDefinition>
     let id = (crudo.id ?? crudo.nombre ?? 'agente').toString().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9_-]+/g, '-').slice(0, 30) || 'agente'
     while (this.def(id) || id === ID_MICHAEL) id = `${id}-${randomUUID().slice(0, 3)}`
-    const def = normalizar({ ...crudo, id }, this.raiz)
+    // Lo que invente el modelo nunca decide qué se ejecuta.
+    const def = normalizar({ ...crudo, id, proveedor: 'claude', comando: undefined, args: [] }, this.raiz)
     if (!def) throw new Error('El agente generado no es válido.')
     return def
   }
@@ -753,9 +767,10 @@ Todo en español.`
   }
 
   private async abrirEnIde(cwd: string): Promise<void> {
-    const editor = ['code', 'cursor', 'codium'].find((e) => enPath(e))
+    // En Windows los editores son .cmd y harían falta una shell: mejor abrir la carpeta.
+    const editor = process.platform === 'win32' ? undefined : ['code', 'cursor', 'codium'].find((e) => enPath(e))
     if (editor) {
-      spawn(editor, [cwd], { detached: true, stdio: 'ignore', shell: process.platform === 'win32' }).unref()
+      spawn(editor, [cwd], { detached: true, stdio: 'ignore' }).unref()
       return
     }
     await shell.openPath(cwd)
@@ -904,6 +919,7 @@ Todo en español.`
         this.evento('sistema', 'Se editó la pizarra')
         return
       case 'memoria:leer':
+        if (!this.def(a.id)) throw new Error('Ese agente no existe.')
         return this.hive.leerTexto(this.hive.rutaMemoria(a.id))
       case 'temporal:crear': {
         const t = this.temporales.crear(a.prompt, a.cwd || this.raiz, a.modelo, USUARIO)

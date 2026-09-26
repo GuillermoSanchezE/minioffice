@@ -1,4 +1,5 @@
-import { BrowserWindow, ipcMain } from 'electron'
+import { BrowserWindow, ipcMain, type IpcMainEvent, type IpcMainInvokeEvent } from 'electron'
+import { esUrlPropia } from './seguridad'
 import { IPC } from '../shared/ipc-channels'
 import type { Accion } from '../shared/acciones'
 import type { Parche, PtyOutputPayload } from '../shared/types'
@@ -16,10 +17,17 @@ export function registrarIpc(oficina: Oficina, soloOficina: (v: BrowserWindow) =
   oficina.on('salida', (payload: PtyOutputPayload) => difundir(IPC.ptySalida, [payload], soloOficina))
   oficina.on('sobre', (de: string, para: string) => difundir(IPC.sobre, [de, para], soloOficina))
 
-  ipcMain.handle(IPC.estado, () => oficina.instantanea())
-  ipcMain.handle(IPC.accion, (_evt, accion: Accion) => oficina.ejecutar(accion))
-  ipcMain.on(IPC.ptyEntrada, (_evt, agentId: string, data: string) => oficina.escribirTerminal(agentId, data))
-  ipcMain.on(IPC.ptyTamano, (_evt, agentId: string, cols: number, rows: number) =>
-    oficina.redimensionarTerminal(agentId, cols, rows)
-  )
+  // Solo las páginas de minioffice le dan órdenes a la oficina.
+  const propio = (evt: IpcMainEvent | IpcMainInvokeEvent): boolean => esUrlPropia(evt.senderFrame?.url)
+  const rechazar = (): never => {
+    throw new Error('Remitente no permitido.')
+  }
+  ipcMain.handle(IPC.estado, (evt) => (propio(evt) ? oficina.instantanea() : rechazar()))
+  ipcMain.handle(IPC.accion, (evt, accion: Accion) => (propio(evt) ? oficina.ejecutar(accion) : rechazar()))
+  ipcMain.on(IPC.ptyEntrada, (evt, agentId: string, data: string) => {
+    if (propio(evt)) oficina.escribirTerminal(agentId, data)
+  })
+  ipcMain.on(IPC.ptyTamano, (evt, agentId: string, cols: number, rows: number) => {
+    if (propio(evt)) oficina.redimensionarTerminal(agentId, cols, rows)
+  })
 }

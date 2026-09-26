@@ -10,7 +10,9 @@ import { Capacidades, motoresInstalados } from './capacidades'
 import { Grapadora } from './grapadora'
 import { carpetaDelProyecto, heredarPathDeLaShell, pedirCarpeta, reabrirEn, recordarProyecto } from './entorno'
 import { Dictado, registrarEsquemaModelos } from './dictado'
+import { endurecer } from './seguridad'
 import { listarConversaciones, listarProyectosClaude } from './claudeProyectos'
+import { recordarConfianza, revisarConfianza } from './confianza'
 
 // Dictado: los modelos de Whisper llegan por modelos:// y usan varios hilos (SharedArrayBuffer).
 registrarEsquemaModelos()
@@ -28,8 +30,8 @@ function urlRenderer(pagina: string): { url?: string; archivo?: string } {
   return dev ? { url: `${dev}/${pagina}` } : { archivo: join(__dirname, '../renderer', pagina) }
 }
 
-function montar(raiz: string): void {
-  oficina = new Oficina(raiz, () => ventanaPrincipal)
+function montar(raiz: string, modoSeguro: boolean): void {
+  oficina = new Oficina(raiz, () => ventanaPrincipal, modoSeguro)
   capacidades = new Capacidades(() => oficina.equipo())
   grapadora = new Grapadora({
     hiveRaiz: oficina.hive.raiz,
@@ -143,6 +145,7 @@ async function crearVentana(): Promise<void> {
 }
 
 app.whenReady().then(async () => {
+  endurecer()
   if (app.isPackaged) heredarPathDeLaShell()
   dictado = new Dictado()
   dictado.iniciar()
@@ -151,8 +154,15 @@ app.whenReady().then(async () => {
     app.quit()
     return
   }
+  const decision = await revisarConfianza(raiz)
+  if (decision === 'cancelar') {
+    app.quit()
+    return
+  }
   try {
-    montar(raiz)
+    montar(raiz, decision === 'seguro')
+    // Lo que minioffice acaba de crear o completar en el proyecto es de confianza.
+    if (decision === 'normal') recordarConfianza(raiz)
     recordarProyecto(raiz)
   } catch (err) {
     dialog.showErrorBox('minioffice no pudo abrir el proyecto', `${raiz}\n\n${(err as Error).message}`)

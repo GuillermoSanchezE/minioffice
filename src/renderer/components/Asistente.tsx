@@ -107,7 +107,9 @@ export function Asistente({ inicial }: { inicial: AgentDefinition | 'nuevo' }): 
     setA({ ...def, id: esNuevo ? def.id : a.id })
     setArgsTexto(unirComando(def.args))
     setIdTocado(true)
-    avisar('Manifiesto cargado: revisa y guarda')
+    if (def.proveedor === 'personalizado' || def.args.length > 0) {
+      avisar('Este agente trae un comando o argumentos propios: revísalos en el paso Motor antes de guardarlo.', 'error')
+    } else avisar('Manifiesto cargado: revisa y guarda')
   }
 
   async function generar(): Promise<void> {

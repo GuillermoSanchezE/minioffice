@@ -8,6 +8,7 @@ import { IndicadorPlan } from './pestanas/Consumo'
 export function BarraTitulo(): JSX.Element {
   const version = useOficina((e) => e.version)
   const raiz = useOficina((e) => e.raiz) ?? ''
+  const modoSeguro = useOficina((e) => e.modoSeguro)
   const modo = useOficina((e) => e.ajustes.modoPermisos)
   const plan = useOficina((e) => e.plan)
   const agentes = useAgentes()
@@ -28,6 +29,14 @@ export function BarraTitulo(): JSX.Element {
         <span className="recorte">{carpeta(raiz) || 'proyecto'}</span>
         <span aria-hidden="true">▾</span>
       </button>
+      {modoSeguro && (
+        <span
+          className="chip-seguro"
+          title="Este proyecto trae ajustes que no escribió minioffice en esta Mac. Se abrió sin comandos propios, webhook, horarios ni otras oficinas. Si confías en él, ciérralo y ábrelo de nuevo eligiendo «Confío en este proyecto»."
+        >
+          modo seguro
+        </span>
+      )}
       <span className="suave">{modo && modo !== 'manual' ? `modo ${nombreModo} activado` : 'modo manual'}</span>
       <span className="espaciador" />
       <IndicadorPlan plan={plan} onClick={() => cambiarUi({ pestana: 'consumo', seleccionado: null })} />

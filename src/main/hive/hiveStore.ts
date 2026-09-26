@@ -9,7 +9,7 @@ import {
   statSync,
   writeFileSync
 } from 'node:fs'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import simpleGit, { type SimpleGit } from 'simple-git'
 import type { Ajustes, EventoActividad, HiveMessage, Pregunta, Tarea } from '../../shared/types'
@@ -106,6 +106,24 @@ export class HiveStore {
   private commitProgramado: NodeJS.Timeout | null = null
   private mensajesPendientesDeCommit: string[] = []
 
+  /**
+   * El hive guarda la clave del webhook, capturas y memorias: que no termine en
+   * un commit del proyecto. Se usa .git/info/exclude (local) para no tocar su .gitignore.
+   */
+  private excluirDelGitDelProyecto(): void {
+    const info = join(dirname(this.raiz), '.git', 'info')
+    try {
+      if (!statSync(join(dirname(this.raiz), '.git')).isDirectory()) return
+      mkdirSync(info, { recursive: true })
+      const ruta = join(info, 'exclude')
+      const actual = existsSync(ruta) ? readFileSync(ruta, 'utf-8') : ''
+      if (/^\/?\.hive\/?\s*$/m.test(actual)) return
+      appendFileSync(ruta, `${actual && !actual.endsWith('\n') ? '\n' : ''}# minioffice: memoria de la oficina\n/.hive/\n`, 'utf-8')
+    } catch {
+      // no es un repositorio git (o es un worktree): nada que hacer
+    }
+  }
+
   constructor(raizProyecto: string) {
     this.raiz = join(raizProyecto, '.hive')
     mkdirSync(this.raiz, { recursive: true })
@@ -150,6 +168,7 @@ export class HiveStore {
 
   async inicializar(agentes: Array<{ id: string; nombre: string }>): Promise<void> {
     this.registrar(agentes)
+    this.excluirDelGitDelProyecto()
     mkdirSync(this.rutaTareas, { recursive: true })
     mkdirSync(this.rutaPreguntas, { recursive: true })
     if (!existsSync(this.rutaPizarra)) {

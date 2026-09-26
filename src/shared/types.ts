@@ -246,6 +246,8 @@ export interface HoraConsumo {
 export interface Instantanea {
   version: string
   raiz: string
+  /** El proyecto se abrió en modo seguro (ajustes que no escribió minioffice en esta Mac). */
+  modoSeguro: boolean
   agentes: Agente[]
   mensajes: HiveMessage[]
   tareas: Tarea[]
@@ -256,6 +258,6 @@ export interface Instantanea {
   plan: EstadoPlan | null
 }
 
-export type Dominio = Exclude<keyof Instantanea, 'version' | 'raiz'>
+export type Dominio = Exclude<keyof Instantanea, 'version' | 'raiz' | 'modoSeguro'>
 
 export type Parche = { [D in Dominio]: { dominio: D; datos: Instantanea[D] } }[Dominio]

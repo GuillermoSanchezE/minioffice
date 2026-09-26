@@ -55,6 +55,16 @@ export function BotonDictado({ alTexto }: { alTexto: (texto: string) => void }):
     setPanelEstado(p)
   }
 
+  // Si el campo desaparece (cambias de pestaña, cierras el diálogo) mientras graba, se cancela:
+  // si no, el micrófono quedaría abierto y bloquearía el dictado en los demás campos.
+  useEffect(
+    () => () => {
+      const e = estadoVoz()
+      if (e.dueno === id && e.fase === 'grabando') cancelarDictado()
+    },
+    [id]
+  )
+
   useEffect(() => {
     if (fase !== 'grabando') return
     const t = window.setInterval(() => setTic((x) => x + 1), 500)

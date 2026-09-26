@@ -23,11 +23,16 @@ export function SelectorConversacion({
   const [manual, setManual] = useState(false)
 
   useEffect(() => {
+    let vigente = true
     setLista(null)
     const t = setTimeout(() => {
-      void accion({ tipo: 'claude:conversaciones', cwd }).then((l) => setLista(l ?? []))
+      // Si mientras tanto cambió la carpeta, esta respuesta ya no vale.
+      void accion({ tipo: 'claude:conversaciones', cwd }).then((l) => vigente && setLista(l ?? []))
     }, 300)
-    return () => clearTimeout(t)
+    return () => {
+      vigente = false
+      clearTimeout(t)
+    }
   }, [cwd])
 
   // Una conversación abierta por otro agente no se puede retomar a la vez.

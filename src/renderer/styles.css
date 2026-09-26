@@ -3125,3 +3125,13 @@ input[type='range'] {
   border-color: var(--mostaza);
   background: var(--mostaza-claro);
 }
+
+.chip-seguro {
+  padding: 2px 8px;
+  border: 1px solid var(--rojo);
+  border-radius: 12px;
+  background: var(--rojo-claro);
+  color: var(--rojo);
+  font-size: 11px;
+  cursor: help;
+}
