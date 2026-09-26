@@ -1,0 +1,49 @@
+name: Auditoría en Mac
+
+# Evidencias antes de publicar una versión: firma, Gatekeeper, entitlements,
+# fusibles, arquitecturas, y una prueba de humo de la app instalada en Apple
+# Silicon y en Intel (Rosetta) con memoria/CPU en reposo y cierre limpio.
+on:
+  workflow_dispatch:
+
+jobs:
+  mac:
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Revisar tipos
+        run: npm run typecheck
+
+      - name: Dependencias con vulnerabilidades conocidas
+        run: npm audit || true
+
+      - name: Construir (Apple Silicon e Intel)
+        run: npm run dist:mac
+
+      - name: Evidencias de firma, Gatekeeper y binarios
+        run: bash pruebas/evidencias-mac.sh dist/mac-arm64/minioffice.app dist/mac/minioffice.app 2>&1 | tee evidencias-mac.txt
+
+      - name: Prueba de humo en Apple Silicon (4 min en reposo)
+        run: node pruebas/humo-mac.cjs dist/mac-arm64/minioffice.app/Contents/MacOS/minioffice arm64 4
+
+      - name: Prueba de humo en Intel con Rosetta (2 min en reposo)
+        continue-on-error: true
+        run: node pruebas/humo-mac.cjs dist/mac/minioffice.app/Contents/MacOS/minioffice x64-rosetta 2 --rosetta
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: auditoria-mac
+          path: |
+            evidencias-mac.txt
+            humo-*.json
+          retention-days: 30
