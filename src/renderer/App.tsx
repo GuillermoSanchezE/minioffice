@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { useAgentes, useOficina } from './tienda'
 import { cambiarUi, useUi, type Pestana } from './ui'
-import { temaTerminales } from './terminales'
+import { liberarTerminales, temaTerminales } from './terminales'
 import { BarraTitulo } from './components/BarraTitulo'
 import { Escenario } from './components/Escenario'
 import { TiraAgentes } from './components/TiraAgentes'
@@ -12,6 +12,7 @@ import { Asistente } from './components/Asistente'
 import { Ajustes } from './components/Ajustes'
 import { SelectorProyecto } from './components/SelectorProyecto'
 import { Avisos } from './components/Avisos'
+import { AvisoSistema } from './components/AvisoSistema'
 import { Vacio } from './components/basicos'
 
 const PANEL_MIN = 420
@@ -28,6 +29,10 @@ export function App(): JSX.Element {
   }, [tema])
 
   useEffect(() => window.minioffice.onNavegar((p) => cambiarUi({ pestana: p as Pestana, seleccionado: null })), [])
+
+  useEffect(() => {
+    if (cargada) liberarTerminales(new Set(agentes.map((a) => a.id)))
+  }, [cargada, agentes])
 
   // Si el agente abierto deja la oficina, se vuelve al centro de mando.
   useEffect(() => {
@@ -55,6 +60,7 @@ export function App(): JSX.Element {
   return (
     <div className={`app ${pantallaCompleta ? 'modo-completo' : 'modo-oficina'}`}>
       <BarraTitulo />
+      <AvisoSistema />
       {pantallaCompleta ? (
         <div className="cuerpo-completo">
           <BarraLateral />

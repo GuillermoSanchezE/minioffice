@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { ConversacionClaude } from '../../shared/types'
 import { accion, useAgentes } from '../tienda'
 import { hace } from '../formato'
+import { ID_CONVERSACION } from '../../shared/motores'
 
 /**
  * Elegir una conversación de Claude Code de esa carpeta para que el agente la
@@ -39,6 +40,7 @@ export function SelectorConversacion({
   const enUso = (id: string): string | undefined =>
     agentes.find((a) => a.id !== agenteId && (a.rt.sesionId === id || a.reanudar === id))?.nombre.split(' ')[0]
   const conocida = !valor || !!lista?.some((c) => c.id === valor)
+  const invalida = !!valor && !ID_CONVERSACION.test(valor)
 
   return (
     <div className="formulario">
@@ -82,6 +84,7 @@ export function SelectorConversacion({
         <label>
           Id de la conversación
           <input className="mono" value={valor ?? ''} onChange={(e) => alCambiar(e.target.value.trim() || undefined)} placeholder="id de sesión" />
+          {invalida && <span className="alerta-texto pequeno">No es un id de conversación (tiene la forma 1b2c3d4e-…): al guardar se ignora.</span>}
         </label>
       ) : (
         <button className="boton-mini" style={{ alignSelf: 'flex-start' }} onClick={() => setManual(true)}>

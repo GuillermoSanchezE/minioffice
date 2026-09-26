@@ -1,8 +1,9 @@
 import { createHash } from 'node:crypto'
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { dirname, join, relative, resolve } from 'node:path'
+import { readFileSync } from 'node:fs'
+import { join, relative, resolve } from 'node:path'
 import { app, dialog } from 'electron'
 import type { AgentDefinition, Ajustes } from '../shared/types'
+import { escribirJson } from './archivos'
 
 /**
  * El equipo (minioffice.config.json) y los ajustes (.hive/ajustes.json) viven
@@ -99,8 +100,7 @@ export function recordarConfianza(raiz: string): void {
   try {
     const confiados = leerConfiados()
     confiados[raiz] = riesgosDe(raiz).firma
-    mkdirSync(dirname(archivoConfianza()), { recursive: true })
-    writeFileSync(archivoConfianza(), `${JSON.stringify(confiados, null, 2)}\n`)
+    escribirJson(archivoConfianza(), confiados)
   } catch (err) {
     console.error('No se pudo guardar la confianza del proyecto:', err)
   }

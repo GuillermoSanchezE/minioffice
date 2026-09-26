@@ -2,10 +2,30 @@ import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { app, session } from 'electron'
 
+/** El servidor de desarrollo de Vite. La app instalada nunca carga páginas de fuera. */
+export function urlDesarrollo(): string | undefined {
+  return app.isPackaged ? undefined : process.env['ELECTRON_RENDERER_URL']
+}
+
 /** De dónde carga minioffice sus propias páginas (el servidor de desarrollo o out/renderer). */
 function origenPropio(): string {
-  const dev = process.env['ELECTRON_RENDERER_URL']
+  const dev = urlDesarrollo()
   return dev ? new URL(dev).origin : pathToFileURL(join(__dirname, '../renderer')).href
+}
+
+const DEPURACION = ['remote-debugging-port', 'remote-debugging-pipe', 'inspect', 'inspect-brk', 'inspect-port']
+
+/**
+ * La app instalada no se deja manejar con el depurador remoto de Chromium: otro
+ * programa podría usar así sus permisos de micrófono y pantalla. Solo la
+ * compilación para pruebas automáticas (MAIN_VITE_PRUEBAS=1) lo acepta.
+ */
+export function bloquearDepuracionExterna(): void {
+  if (!app.isPackaged || import.meta.env.MAIN_VITE_PRUEBAS === '1') return
+  const pedida = DEPURACION.find((s) => app.commandLine.hasSwitch(s))
+  if (!pedida) return
+  console.error(`minioffice no arranca con --${pedida}.`)
+  app.exit(1)
 }
 
 function decodificar(url: string): string {

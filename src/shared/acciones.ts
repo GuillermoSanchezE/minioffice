@@ -116,6 +116,8 @@ export type Accion =
   | { tipo: 'manifiesto:exportar'; agente: AgentDefinition }
   | { tipo: 'manifiesto:generar'; descripcion: string }
   | { tipo: 'proyectos' }
+  | { tipo: 'sistema:abrir'; destino: 'descarga' | 'claude' }
+  | { tipo: 'sistema:instalarGit' }
   | { tipo: 'capacidades:listar' }
   | { tipo: 'capacidades:catalogo' }
   | { tipo: 'capacidades:instalar'; nombre: string; tipoCapacidad: CatalogoItem['tipo'] }

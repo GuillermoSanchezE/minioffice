@@ -7,6 +7,9 @@ import type { AgentDefinition } from '../shared/types'
 import type { SkillOficina } from '../shared/acciones'
 import { CATALOGO_SKILLS, FUENTES, NOMBRE_SKILL_VALIDO, PUESTOS, skillDelCatalogo, type FuenteSkill } from '../shared/skills'
 import { leerFrontmatter } from './capacidades'
+import { carpetaNeutra } from './entorno'
+import { escribirJson } from './archivos'
+import { gitDisponible } from './requisitos'
 
 const TIEMPO_GIT_MS = 4 * 60_000
 
@@ -188,11 +191,16 @@ export class Biblioteca {
 
   private async clonarYCopiar(fuente: FuenteSkill, nombres: string[]): Promise<void> {
     const f = FUENTES[fuente]
+    if (!gitDisponible()) throw new Error('Para descargar skills hace falta git: instala las herramientas de desarrollo de Apple («xcode-select --install»).')
     const temporal = mkdtempSync(join(tmpdir(), 'minioffice-skills-'))
     try {
-      await ejecutar('git', ['clone', '--depth', '1', '--filter=blob:none', '--sparse', f.repo, 'repo'], temporal)
+      // Solo el commit fijado y solo las carpetas de esas skills.
       const repo = join(temporal, 'repo')
+      await ejecutar('git', ['init', '-q', repo], temporal)
+      await ejecutar('git', ['remote', 'add', 'origin', f.repo], repo)
       await ejecutar('git', ['sparse-checkout', 'set', ...nombres.map((n) => `${f.carpeta}/${n}`)], repo)
+      await ejecutar('git', ['fetch', '--depth', '1', '--filter=blob:none', 'origin', f.commit], repo)
+      await ejecutar('git', ['checkout', '-q', 'FETCH_HEAD'], repo)
       for (const nombre of nombres) {
         const origen = join(repo, f.carpeta, nombre)
         if (!existsSync(join(origen, 'SKILL.md'))) throw new Error(`${f.nombre} ya no tiene la skill ${nombre}.`)
@@ -202,7 +210,7 @@ export class Biblioteca {
         cpSync(origen, destino, { recursive: true })
       }
     } catch (err) {
-      throw new Error(`No se pudo descargar de ${f.nombre}: ${(err as Error).message}\nA mano: git clone ${f.repo} y copia ${f.carpeta}/<skill> a ${join(this.carpetaSkills, fuente)}/`)
+      throw new Error(`No se pudo descargar de ${f.nombre}: ${(err as Error).message}\nA mano: git clone ${f.repo}, git checkout ${f.commit} y copia ${f.carpeta}/<skill> a ${join(this.carpetaSkills, fuente)}/`)
     } finally {
       rmSync(temporal, { recursive: true, force: true })
     }
@@ -279,12 +287,11 @@ export class Biblioteca {
     const texto = await ejecutar(
       'claude',
       ['-p', '--model', 'claude-haiku-4-5', '--output-format', 'text'],
-      undefined,
+      carpetaNeutra(),
       `Explica en español, en una sola frase de máximo 30 palabras y sin comillas, para qué sirve esta skill de Claude Code y cuándo usarla. Nombre: ${nombre}. Descripción original: ${descripcion}`
     )
     const resumen = texto.replace(/\s+/g, ' ').trim().slice(0, 300)
-    mkdirSync(this.raiz, { recursive: true })
-    writeFileSync(this.archivoResumenes, `${JSON.stringify({ ...resumenes, [nombre]: resumen }, null, 2)}\n`)
+    escribirJson(this.archivoResumenes, { ...resumenes, [nombre]: resumen })
     return resumen
   }
 }

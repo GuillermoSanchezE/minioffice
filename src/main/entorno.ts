@@ -1,5 +1,6 @@
-import { execFileSync } from 'node:child_process'
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { execFile } from 'node:child_process'
+import { existsSync, mkdirSync, readFileSync } from 'node:fs'
+import { escribirJson } from './archivos'
 import { homedir } from 'node:os'
 import { delimiter, join, resolve } from 'node:path'
 import { app, dialog } from 'electron'
@@ -9,17 +10,15 @@ import { app, dialog } from 'electron'
  * encontraría `claude`, `git` ni `node`. Se lo pedimos a tu shell de inicio y
  * se añaden las carpetas donde suelen instalarse.
  */
-export function heredarPathDeLaShell(): void {
+export async function heredarPathDeLaShell(): Promise<void> {
   if (process.platform === 'win32') return
   const actual = (process.env['PATH'] ?? '').split(delimiter).filter(Boolean)
-  let deLaShell: string[] = []
-  try {
-    const shell = process.env['SHELL'] || (process.platform === 'darwin' ? '/bin/zsh' : '/bin/bash')
-    const salida = execFileSync(shell, ['-ilc', 'printf "__MO__%s__MO__" "$PATH"'], { encoding: 'utf8', timeout: 5000, stdio: ['ignore', 'pipe', 'ignore'] })
-    deLaShell = (/__MO__(.*)__MO__/.exec(salida)?.[1] ?? '').split(delimiter).filter(Boolean)
-  } catch {
-    // shell lenta o rara: quedan las carpetas conocidas
-  }
+  const shell = process.env['SHELL'] || (process.platform === 'darwin' ? '/bin/zsh' : '/bin/bash')
+  // Sin bloquear el arranque: la shell puede tardar (nvm, oh-my-zsh…).
+  const salida = await new Promise<string>((resolver) => {
+    execFile(shell, ['-ilc', 'printf "__MO__%s__MO__" "$PATH"'], { encoding: 'utf8', timeout: 5000 }, (err, stdout) => resolver(err ? '' : stdout))
+  })
+  const deLaShell = (/__MO__(.*)__MO__/.exec(salida)?.[1] ?? '').split(delimiter).filter(Boolean)
   const casa = homedir()
   const conocidas = [
     join(casa, '.local', 'bin'),
@@ -48,8 +47,7 @@ function ultimoProyecto(): string | null {
 }
 
 export function recordarProyecto(ruta: string): void {
-  mkdirSync(app.getPath('userData'), { recursive: true })
-  writeFileSync(archivoPreferencias(), `${JSON.stringify({ ultimo: ruta }, null, 2)}\n`)
+  escribirJson(archivoPreferencias(), { ultimo: ruta })
 }
 
 export async function pedirCarpeta(titulo: string, inicial?: string): Promise<string | null> {
@@ -83,9 +81,21 @@ export async function carpetaDelProyecto(): Promise<string | null> {
   return pedirCarpeta('Carpeta del proyecto')
 }
 
-/** Reabre la app en otra carpeta de proyecto. */
+/**
+ * Carpeta vacía para lo que ejecuta `claude -p` sin necesitar el proyecto:
+ * así no carga la configuración de un repositorio en el que no confías.
+ */
+export function carpetaNeutra(): string {
+  const carpeta = join(app.getPath('userData'), 'sin-proyecto')
+  mkdirSync(carpeta, { recursive: true })
+  return carpeta
+}
+
+/**
+ * Reabre la app en otra carpeta de proyecto. Se recuerda como "último proyecto"
+ * solo cuando abre bien (si no, la app volvería una y otra vez a una carpeta rota).
+ */
 export function reabrirEn(ruta: string): void {
-  recordarProyecto(ruta)
   const args = process.argv.slice(1).filter((a) => !a.startsWith('--proyecto='))
   app.relaunch({ args: [...args, `--proyecto=${ruta}`] })
   app.exit(0)

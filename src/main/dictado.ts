@@ -1,4 +1,4 @@
-import { createReadStream, createWriteStream, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { createReadStream, createWriteStream, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { Readable, Writable } from 'node:stream'
 import { app, net, protocol, shell, systemPreferences } from 'electron'
@@ -11,6 +11,7 @@ import {
   type ModeloDictado,
   type PermisoMicrofono
 } from '../shared/dictado'
+import { escribirJson } from './archivos'
 
 const CORS = {
   'access-control-allow-origin': '*',
@@ -88,8 +89,7 @@ export class Dictado {
   }
 
   private persistir(): void {
-    mkdirSync(dirname(this.archivo), { recursive: true })
-    writeFileSync(this.archivo, `${JSON.stringify({ ...this.ajustes, listos: [...this.listos] }, null, 2)}\n`)
+    escribirJson(this.archivo, { ...this.ajustes, listos: [...this.listos] })
   }
 
   estado(): EstadoDictado {

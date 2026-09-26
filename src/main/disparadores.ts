@@ -34,7 +34,13 @@ export class Disparadores {
   constructor(private receptor: Receptor) {}
 
   iniciar(): void {
-    this.temporizador = setInterval(() => this.revisarHorarios(), INTERVALO_HORARIOS_MS)
+    this.temporizador = setInterval(() => {
+      try {
+        this.revisarHorarios()
+      } catch (err) {
+        console.error('Fallo al revisar los horarios:', err)
+      }
+    }, INTERVALO_HORARIOS_MS)
     this.aplicar()
   }
 

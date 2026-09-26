@@ -208,6 +208,15 @@ export class EscenaOficina {
     this.app.stage.addChild(this.mundo)
     this.configurarCamara()
     this.app.ticker.add((ticker) => this.tick(ticker.deltaMS))
+    // El pixel art no necesita 60-120 fps: 30 con la ventana activa y 12 si estás en otra app
+    // (las animaciones van por tiempo, así que solo cambia la suavidad). Ahorra CPU y batería.
+    this.ajustarFps()
+    window.addEventListener('focus', this.ajustarFps)
+    window.addEventListener('blur', this.ajustarFps)
+  }
+
+  private ajustarFps = (): void => {
+    this.app.ticker.maxFPS = document.hasFocus() ? 30 : 12
   }
 
   destruir(): void {
@@ -215,6 +224,8 @@ export class EscenaOficina {
     this.destruida = true
     this.host.removeEventListener('wheel', this.alRueda)
     this.host.removeEventListener('dblclick', this.alDobleClic)
+    window.removeEventListener('focus', this.ajustarFps)
+    window.removeEventListener('blur', this.ajustarFps)
     this.listo.then(() => this.app.destroy(true, { children: true })).catch(() => undefined)
   }
 

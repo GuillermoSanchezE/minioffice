@@ -1,24 +1,20 @@
-import {
-  appendFileSync,
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  readdirSync,
-  renameSync,
-  rmSync,
-  statSync,
-  writeFileSync
-} from 'node:fs'
+import { appendFileSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync } from 'node:fs'
 import { dirname, join } from 'node:path'
-import { randomUUID } from 'node:crypto'
+import { randomBytes, randomUUID } from 'node:crypto'
 import simpleGit, { type SimpleGit } from 'simple-git'
 import type { Ajustes, EventoActividad, HiveMessage, Pregunta, Tarea } from '../../shared/types'
 import type { ResultadoMemoria } from '../../shared/acciones'
+import { escribirAtomico } from '../archivos'
+import { gitDisponible } from '../requisitos'
+import type { AlmacenSecretos, ClavesProyecto } from '../secretos'
 
 // Un archivo que aun no es JSON valido puede estar a medio escribir; solo se
 // descarta si sigue roto despues de este tiempo.
 const MS_GRACIA_ARCHIVO_ROTO = 5000
 const MAX_ACTIVIDAD = 400
+/** actividad.jsonl se recorta a sus últimas líneas cuando pasa de este tamaño. */
+const MAX_BYTES_ACTIVIDAD = 1_000_000
+const LINEAS_ACTIVIDAD_CONSERVADAS = 2000
 
 export const USUARIO = 'usuario'
 
@@ -71,7 +67,7 @@ export const AJUSTES_POR_DEFECTO: Ajustes = {
   compactarUmbral: 80,
   webhooks: false,
   webhookPuerto: 4717,
-  webhookClave: randomUUID().replace(/-/g, '').slice(0, 24),
+  webhookClave: '',
   webhookRed: false,
   companeros: [],
   maxTemporales: 4,
@@ -87,10 +83,27 @@ function leerJson<T>(ruta: string): T | null {
   }
 }
 
-function escribirAtomico(ruta: string, contenido: string): void {
-  const temporal = `${ruta}.${randomUUID().slice(0, 8)}.tmp`
-  writeFileSync(temporal, contenido)
-  renameSync(temporal, ruta)
+/** Clave nueva para el webhook (144 bits). */
+export function nuevaClaveWebhook(): string {
+  return randomBytes(18).toString('base64url')
+}
+
+/** Sin almacén de claves (pruebas): quedan en memoria mientras dura el proceso. */
+class ClavesEnMemoria implements AlmacenSecretos {
+  private claves: ClavesProyecto = { companeros: {} }
+  leer(): ClavesProyecto {
+    return { webhookClave: this.claves.webhookClave, companeros: { ...this.claves.companeros } }
+  }
+  guardar(claves: ClavesProyecto): void {
+    this.claves = { webhookClave: claves.webhookClave, companeros: { ...claves.companeros } }
+  }
+}
+
+/** Lo leído de un archivo del hive, para no volver a leerlo si no cambió. */
+interface EnCache<T> {
+  mtime: number
+  tamano: number
+  dato: T | null
 }
 
 /**
@@ -105,6 +118,7 @@ export class HiveStore {
   private idsValidos = new Set<string>()
   private commitProgramado: NodeJS.Timeout | null = null
   private mensajesPendientesDeCommit: string[] = []
+  private cache = new Map<string, EnCache<unknown>>()
 
   /**
    * El hive guarda la clave del webhook, capturas y memorias: que no termine en
@@ -124,10 +138,38 @@ export class HiveStore {
     }
   }
 
-  constructor(raizProyecto: string) {
+  constructor(
+    raizProyecto: string,
+    /** Dónde van las claves (fuera del proyecto). */
+    private secretos: AlmacenSecretos = new ClavesEnMemoria()
+  ) {
     this.raiz = join(raizProyecto, '.hive')
+    // Un repositorio podría traer .hive como enlace a otra carpeta: minioffice escribiría ahí.
+    try {
+      if (lstatSync(this.raiz).isSymbolicLink()) {
+        throw new Error('La carpeta .hive del proyecto es un enlace simbólico; por seguridad minioffice no la usa. Bórrala o cámbiala por una carpeta normal.')
+      }
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err
+    }
     mkdirSync(this.raiz, { recursive: true })
     this.git = simpleGit(this.raiz)
+  }
+
+  /** Lee un JSON del hive; si no cambió desde la última vez, devuelve lo ya leído. */
+  private leerConCache<T>(ruta: string): T | null {
+    let st
+    try {
+      st = statSync(ruta)
+    } catch {
+      this.cache.delete(ruta)
+      return null
+    }
+    const previo = this.cache.get(ruta)
+    if (previo && previo.mtime === st.mtimeMs && previo.tamano === st.size) return previo.dato as T | null
+    const dato = leerJson<T>(ruta)
+    this.cache.set(ruta, { mtime: st.mtimeMs, tamano: st.size, dato })
+    return dato
   }
 
   rutaAgente(agentId: string): string {
@@ -172,8 +214,11 @@ export class HiveStore {
     mkdirSync(this.rutaTareas, { recursive: true })
     mkdirSync(this.rutaPreguntas, { recursive: true })
     if (!existsSync(this.rutaPizarra)) {
-      writeFileSync(this.rutaPizarra, '# Pizarra compartida\n\nNotas visibles para todo el equipo.\n', 'utf-8')
+      escribirAtomico(this.rutaPizarra, '# Pizarra compartida\n\nNotas visibles para todo el equipo.\n')
     }
+    this.recortarActividad()
+    // Sin git (Mac sin herramientas de desarrollo) la oficina funciona igual, sin historial del hive.
+    if (!gitDisponible()) return
     try {
       if (!existsSync(join(this.raiz, '.git'))) {
         await this.git.init()
@@ -194,12 +239,13 @@ export class HiveStore {
       mkdirSync(this.rutaEntrada(agente.id), { recursive: true })
       mkdirSync(this.rutaSalida(agente.id), { recursive: true })
       if (!existsSync(this.rutaMemoria(agente.id))) {
-        writeFileSync(this.rutaMemoria(agente.id), `# Memoria de ${agente.nombre}\n\n`, 'utf-8')
+        escribirAtomico(this.rutaMemoria(agente.id), `# Memoria de ${agente.nombre}\n\n`)
       }
     }
   }
 
   async commit(mensaje: string): Promise<void> {
+    if (!gitDisponible()) return
     try {
       await this.git.add('.')
       const estado = await this.git.status()
@@ -284,7 +330,7 @@ export class HiveStore {
 
   guardarEnEntrada(mensaje: HiveMessage): void {
     mkdirSync(this.rutaEntrada(mensaje.para), { recursive: true })
-    writeFileSync(join(this.rutaEntrada(mensaje.para), `${mensaje.id}.json`), JSON.stringify(mensaje, null, 2))
+    escribirAtomico(join(this.rutaEntrada(mensaje.para), `${mensaje.id}.json`), JSON.stringify(mensaje, null, 2))
   }
 
   private rechazar(agentId: string, archivo: string): void {
@@ -307,12 +353,34 @@ export class HiveStore {
     return salida
   }
 
-  /** Todos los mensajes entregados, de todos los buzones, en orden cronologico. */
-  historialCompleto(): HiveMessage[] {
-    const todos: HiveMessage[] = []
+  /**
+   * Los mensajes entregados de todos los buzones, en orden cronológico. Con
+   * `limite`, solo se leen los más recientes (por fecha del archivo): con meses
+   * de uso hay miles y leerlos todos retrasaba la apertura.
+   */
+  historialCompleto(limite?: number): HiveMessage[] {
     const carpeta = join(this.raiz, 'agentes')
-    if (!existsSync(carpeta)) return todos
-    for (const id of readdirSync(carpeta)) todos.push(...this.leerMensajes(this.rutaEntrada(id)))
+    if (!existsSync(carpeta)) return []
+    const archivos: Array<{ ruta: string; mtime: number }> = []
+    for (const id of readdirSync(carpeta)) {
+      const dir = this.rutaEntrada(id)
+      if (!existsSync(dir)) continue
+      for (const archivo of readdirSync(dir)) {
+        if (!archivo.endsWith('.json')) continue
+        const ruta = join(dir, archivo)
+        try {
+          archivos.push({ ruta, mtime: statSync(ruta).mtimeMs })
+        } catch {
+          // se movió mientras tanto
+        }
+      }
+    }
+    const elegidos = limite ? archivos.sort((a, b) => b.mtime - a.mtime).slice(0, limite) : archivos
+    const todos: HiveMessage[] = []
+    for (const { ruta } of elegidos) {
+      const m = leerJson<HiveMessage>(ruta)
+      if (m && typeof m.cuerpo === 'string') todos.push(m)
+    }
     return todos.sort((a, b) => a.creadoEn - b.creadoEn)
   }
 
@@ -335,7 +403,7 @@ export class HiveStore {
     if (!existsSync(this.rutaTareas)) return []
     const tareas: Tarea[] = []
     for (const archivo of readdirSync(this.rutaTareas).filter((f) => f.endsWith('.json'))) {
-      const t = leerJson<Partial<Tarea>>(join(this.rutaTareas, archivo))
+      const t = this.leerConCache<Partial<Tarea>>(join(this.rutaTareas, archivo))
       if (!t || typeof t.titulo !== 'string') continue
       const id = archivo.replace(/\.json$/, '')
       tareas.push({
@@ -384,7 +452,7 @@ export class HiveStore {
     if (!existsSync(this.rutaPreguntas)) return []
     return readdirSync(this.rutaPreguntas)
       .filter((f) => f.endsWith('.json'))
-      .map((f) => leerJson<Pregunta>(join(this.rutaPreguntas, f)))
+      .map((f) => this.leerConCache<Pregunta>(join(this.rutaPreguntas, f)))
       .filter((p): p is Pregunta => !!p && typeof p.pregunta === 'string')
       .sort((a, b) => b.creada - a.creada)
   }
@@ -407,7 +475,24 @@ export class HiveStore {
   // ------------------------------------------------------------ actividad
 
   registrarEvento(evento: EventoActividad): void {
-    appendFileSync(join(this.raiz, 'actividad.jsonl'), `${JSON.stringify(evento)}\n`, 'utf-8')
+    try {
+      appendFileSync(join(this.raiz, 'actividad.jsonl'), `${JSON.stringify(evento)}\n`, 'utf-8')
+    } catch (err) {
+      // disco lleno o sin permiso: la actividad sigue en memoria
+      console.error('No se pudo anotar la actividad:', (err as Error).message)
+    }
+  }
+
+  /** actividad.jsonl crecía para siempre: al abrir se queda con sus últimas líneas. */
+  private recortarActividad(): void {
+    const ruta = join(this.raiz, 'actividad.jsonl')
+    try {
+      if (statSync(ruta).size <= MAX_BYTES_ACTIVIDAD) return
+      const lineas = readFileSync(ruta, 'utf-8').trimEnd().split('\n').slice(-LINEAS_ACTIVIDAD_CONSERVADAS)
+      escribirAtomico(ruta, `${lineas.join('\n')}\n`)
+    } catch {
+      // aún no existe
+    }
   }
 
   leerActividad(): EventoActividad[] {
@@ -427,15 +512,48 @@ export class HiveStore {
 
   // -------------------------------------------------------------- ajustes
 
+  /**
+   * Los ajustes del proyecto. Las claves (webhook y otras oficinas) no están en
+   * el archivo: vienen del almacén de secretos. Las versiones anteriores las
+   * guardaban aquí; al leerlas se mudan.
+   */
   leerAjustes(): Ajustes {
-    const guardados = leerJson<Partial<Ajustes>>(join(this.raiz, 'ajustes.json')) ?? {}
-    const ajustes = { ...AJUSTES_POR_DEFECTO, ...guardados }
-    if (!guardados.webhookClave) this.guardarAjustes(ajustes)
+    const ruta = join(this.raiz, 'ajustes.json')
+    let guardados: Partial<Ajustes> = {}
+    if (existsSync(ruta)) {
+      const leidos = leerJson<Partial<Ajustes>>(ruta)
+      if (leidos && typeof leidos === 'object' && !Array.isArray(leidos)) guardados = leidos
+      else {
+        // Dañado: se aparta una copia en vez de pisarlo con los valores por defecto.
+        const copia = `${ruta}.danado-${Date.now()}`
+        try {
+          renameSync(ruta, copia)
+        } catch {
+          // no se pudo mover
+        }
+        console.error(`ajustes.json estaba dañado; copia en ${copia}`)
+      }
+    }
+    const claves = this.secretos.leer()
+    const ajustes: Ajustes = { ...AJUSTES_POR_DEFECTO, ...guardados }
+    ajustes.companeros = (Array.isArray(ajustes.companeros) ? ajustes.companeros : []).map((c) => ({
+      ...c,
+      clave: claves.companeros[c.id] ?? (typeof c.clave === 'string' ? c.clave : '')
+    }))
+    ajustes.webhookClave = claves.webhookClave || guardados.webhookClave || nuevaClaveWebhook()
+    const mudar = !!guardados.webhookClave || (Array.isArray(guardados.companeros) && guardados.companeros.some((c) => !!(c as { clave?: string }).clave))
+    if (mudar || !claves.webhookClave) this.guardarAjustes(ajustes)
     return ajustes
   }
 
   guardarAjustes(ajustes: Ajustes): void {
-    escribirAtomico(join(this.raiz, 'ajustes.json'), JSON.stringify(ajustes, null, 2))
+    this.secretos.guardar({
+      webhookClave: ajustes.webhookClave,
+      companeros: Object.fromEntries(ajustes.companeros.map((c) => [c.id, c.clave]))
+    })
+    const { webhookClave: _clave, ...resto } = ajustes
+    const sinClaves = { ...resto, companeros: ajustes.companeros.map(({ clave: _c, ...c }) => c) }
+    escribirAtomico(join(this.raiz, 'ajustes.json'), JSON.stringify(sinClaves, null, 2))
   }
 
   leerArchivoLibre<T>(nombre: string): T | null {

@@ -10,6 +10,11 @@ export interface Fuente {
   nombre: string
   autor: string
   repo: string
+  /**
+   * Commit fijado: se instala siempre esta versión revisada, no lo último que se
+   * haya subido (un cambio malicioso en el repositorio no llega solo a tus agentes).
+   */
+  commit: string
   /** Carpeta del repositorio donde viven las skills. */
   carpeta: string
   licencia: string
@@ -21,6 +26,7 @@ export const FUENTES: Record<FuenteSkill, Fuente> = {
     nombre: 'UI/UX Pro Max',
     autor: 'Next Level Builder',
     repo: 'https://github.com/nextlevelbuilder/ui-ux-pro-max-skill.git',
+    commit: '823b0a14d3539b5d78c0efb614426a4fab5983ec',
     carpeta: '.claude/skills',
     licencia: 'MIT',
     resumen: 'Criterio de diseño con un buscador local: 79 estilos, 192 paletas, 74 pares de fuentes y 119 reglas de UX.'
@@ -29,6 +35,7 @@ export const FUENTES: Record<FuenteSkill, Fuente> = {
     nombre: 'ECC · Everything Claude Code',
     autor: 'Affaan Mustafa',
     repo: 'https://github.com/affaan-m/everything-claude-code.git',
+    commit: 'e482e579415fde18357cafce70f177ae19fd7f03',
     carpeta: 'skills',
     licencia: 'MIT',
     resumen: 'Colección de 292 flujos de ingeniería. Aquí están solo las útiles para software y web.'
@@ -37,6 +44,7 @@ export const FUENTES: Record<FuenteSkill, Fuente> = {
     nombre: 'Anthropic',
     autor: 'Anthropic',
     repo: 'https://github.com/anthropics/skills.git',
+    commit: '33375500bcea98d610eb30ce10ac4e59b89c390d',
     carpeta: 'skills',
     licencia: 'la de cada skill',
     resumen: 'Las skills oficiales de Anthropic.'

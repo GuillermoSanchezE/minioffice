@@ -120,6 +120,17 @@ function crear(agentId: string): TerminalAgente {
   }
 }
 
+/** Un agente dejó la oficina: su terminal (y su historial en memoria) se libera. */
+export function liberarTerminales(vivos: Set<string>): void {
+  for (const [id, entrada] of registro) {
+    if (vivos.has(id)) continue
+    entrada.terminal.dispose()
+    entrada.elemento.remove()
+    registro.delete(id)
+    cargando.delete(id)
+  }
+}
+
 export function terminalDe(agentId: string): TerminalAgente {
   if (!suscrito) {
     suscrito = true

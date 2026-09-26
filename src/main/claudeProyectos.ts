@@ -1,4 +1,5 @@
 import { closeSync, existsSync, openSync, readSync, readdirSync, statSync } from 'node:fs'
+import { open, readdir, stat } from 'node:fs/promises'
 import { basename, join } from 'node:path'
 import type { ConversacionClaude, ProyectoClaude } from '../shared/types'
 import { carpetaClaude } from './transcripcion'
@@ -76,29 +77,76 @@ function transcripciones(dir: string): Array<{ ruta: string; id: string; mtime: 
   }
 }
 
-function cwdDe(ruta: string): string | undefined {
-  for (const r of registros(leerTrozo(ruta, 'inicio', CABECERA))) {
-    if (typeof r['cwd'] === 'string') return r['cwd']
+/**
+ * La carpeta de trabajo de una transcripción: va en sus primeras líneas, así que
+ * se lee poco a poco y se para en cuanto aparece (antes se leían 256 KB de cada una).
+ */
+async function cwdDe(ruta: string): Promise<string | undefined> {
+  let archivo
+  try {
+    archivo = await open(ruta, 'r')
+  } catch {
+    return undefined
   }
-  return undefined
+  try {
+    let resto = ''
+    for (let desde = 0; desde < CABECERA; desde += 32 * 1024) {
+      const buffer = Buffer.alloc(32 * 1024)
+      const { bytesRead } = await archivo.read(buffer, 0, buffer.length, desde)
+      if (bytesRead <= 0) break
+      const lineas = (resto + buffer.subarray(0, bytesRead).toString('utf8')).split('\n')
+      resto = lineas.pop() ?? ''
+      for (const linea of lineas) {
+        if (!linea.includes('"cwd"')) continue
+        try {
+          const cwd = (JSON.parse(linea) as Record<string, unknown>)['cwd']
+          if (typeof cwd === 'string') return cwd
+        } catch {
+          // línea rara
+        }
+      }
+    }
+    return undefined
+  } finally {
+    await archivo.close()
+  }
 }
 
-/** Carpetas donde ya trabajaste con Claude Code, la más reciente primero. */
-export function listarProyectosClaude(): ProyectoClaude[] {
+async function transcripcionesAsinc(dir: string): Promise<Array<{ ruta: string; mtime: number }>> {
+  let nombres: string[] = []
+  try {
+    nombres = (await readdir(dir)).filter((f) => f.endsWith('.jsonl'))
+  } catch {
+    return []
+  }
+  const lista: Array<{ ruta: string; mtime: number }> = []
+  for (const nombre of nombres) {
+    try {
+      const ruta = join(dir, nombre)
+      lista.push({ ruta, mtime: (await stat(ruta)).mtimeMs })
+    } catch {
+      // se borró mientras tanto
+    }
+  }
+  return lista.sort((a, b) => b.mtime - a.mtime)
+}
+
+/** Carpetas donde ya trabajaste con Claude Code, la más reciente primero (sin bloquear la app). */
+export async function listarProyectosClaude(): Promise<ProyectoClaude[]> {
   const base = join(carpetaClaude(), 'projects')
   let carpetas: string[] = []
   try {
-    carpetas = readdirSync(base)
+    carpetas = await readdir(base)
   } catch {
     return []
   }
   const proyectos = new Map<string, ProyectoClaude>()
   for (const carpeta of carpetas) {
-    const lista = transcripciones(join(base, carpeta))
+    const lista = await transcripcionesAsinc(join(base, carpeta))
     if (lista.length === 0) continue
     let cwd: string | undefined
     for (const t of lista.slice(0, 3)) {
-      cwd = cwdDe(t.ruta)
+      cwd = await cwdDe(t.ruta)
       if (cwd) break
     }
     if (!cwd || !existsSync(cwd)) continue

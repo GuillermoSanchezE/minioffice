@@ -1,8 +1,7 @@
 import { EventEmitter } from 'node:events'
 import { execFile, spawn } from 'node:child_process'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
-import { userInfo } from 'node:os'
-import { basename, delimiter, join } from 'node:path'
+import { basename } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { dialog, shell, type BrowserWindow } from 'electron'
 import paquete from '../../package.json'
@@ -12,6 +11,7 @@ import type {
   AgentDefinition,
   AgentRuntime,
   EstadoPlan,
+  EstadoSistema,
   AgentStatus,
   Ajustes,
   EventoActividad,
@@ -24,12 +24,15 @@ import type {
   TipoEvento
 } from '../shared/types'
 import { ID_MICHAEL, REPARTO } from '../shared/reparto'
-import { comandoBase, proveedorDe, unirComando, ventanaDe } from '../shared/motores'
+import { ID_CONVERSACION, NOMBRE_MODELO, PROVEEDORES, comandoBase, proveedorDe, unirComando, ventanaDe } from '../shared/motores'
 import { cargarEquipo, guardarEquipo, normalizar } from './equipo'
 import { guardarPreferencias, leerPreferencias } from './preferencias'
 import { recordarConfianza, sanearAjustes, sanearEquipo } from './confianza'
+import { carpetaNeutra } from './entorno'
+import { claudeConfiaEn, requisitos, rutaEjecutable } from './requisitos'
 import { HiveStore, USUARIO, type PendienteDeEnvio } from './hive/hiveStore'
 import { MailboxRouter } from './hive/mailboxRouter'
+import { Secretos } from './secretos'
 import { Sesiones } from './pty/sesiones'
 import { SeguidorTranscripcion } from './transcripcion'
 import { instruccionesPara } from './agents/instrucciones'
@@ -66,17 +69,6 @@ function slug(texto: string): string {
   return `${base || 'tarea'}-${randomUUID().slice(0, 4)}`
 }
 
-function enPath(binario: string): string | null {
-  const extensiones = process.platform === 'win32' ? ['.exe', '.cmd', '.bat', ''] : ['']
-  for (const dir of (process.env.PATH ?? '').split(delimiter)) {
-    for (const ext of extensiones) {
-      const ruta = join(dir, binario + ext)
-      if (dir && existsSync(ruta)) return ruta
-    }
-  }
-  return null
-}
-
 /**
  * El cerebro de minioffice: el equipo, sus sesiones, los mensajes, las tareas
  * y las preguntas. Emite 'parche' con cada cambio para la interfaz, 'salida'
@@ -94,6 +86,11 @@ export class Oficina extends EventEmitter {
   private detencionesPedidas = new Set<string>()
   private arrancando = new Set<string>()
   private compactando = new Map<string, number>()
+  /** Arranques fallidos seguidos: al tercero ya no se reintenta solo. */
+  private fallosSeguidos = new Map<string, number>()
+  private ultimoFallo = new Map<string, { motivo: string; ts: number }>()
+  /** Prompt con el que arrancó la sesión (si se cae enseguida, vuelve a la cola). */
+  private promptInicial = new Map<string, string>()
   private router: MailboxRouter
   readonly temporales: Temporales
   readonly disparadores: Disparadores
@@ -109,6 +106,7 @@ export class Oficina extends EventEmitter {
   private actividad: EventoActividad[] = []
   private firmas = new Map<string, string>()
   private temporizadores: NodeJS.Timeout[] = []
+  private sistema: EstadoSistema = { requisitos: { claude: true, git: true }, actualizacion: null }
 
   constructor(
     readonly raiz: string,
@@ -117,7 +115,7 @@ export class Oficina extends EventEmitter {
     readonly modoSeguro = false
   ) {
     super()
-    this.hive = new HiveStore(raiz)
+    this.hive = new HiveStore(raiz, new Secretos(raiz))
     this.defs = cargarEquipo(raiz)
     this.ajustesActuales = this.hive.leerAjustes()
     if (modoSeguro) {
@@ -141,7 +139,8 @@ export class Oficina extends EventEmitter {
     )
     this.temporales = new Temporales(
       () => this.ajustesActuales.maxTemporales,
-      () => this.ajustesActuales.modoPermisos
+      () => this.ajustesActuales.modoPermisos,
+      (cwd) => this.comprobarCarpetaTemporal(cwd)
     )
     this.temporales.on('cambio', () => this.emitir('temporales'))
     this.temporales.on('terminado', (t) =>
@@ -159,14 +158,17 @@ export class Oficina extends EventEmitter {
 
   async iniciar(): Promise<void> {
     await this.hive.inicializar(this.defs)
-    this.mensajes = this.hive.historialCompleto().slice(-MAX_MENSAJES)
+    this.mensajes = this.hive.historialCompleto(MAX_MENSAJES).slice(-MAX_MENSAJES)
     this.tareas = this.hive.listarTareas()
     this.preguntas = this.hive.listarPreguntas()
     this.actividad = this.hive.leerActividad()
     this.router.iniciar()
     this.disparadores.iniciar()
-    this.temporizadores.push(setInterval(() => this.tick(), TICK_MS))
-    this.temporizadores.push(setInterval(() => this.revisarDisco(), REVISION_DISCO_MS))
+    // Un fallo en una vuelta (disco lleno, archivo a medio escribir) no para las siguientes.
+    this.temporizadores.push(setInterval(() => this.aSalvo('tick', () => this.tick()), TICK_MS))
+    this.temporizadores.push(setInterval(() => this.aSalvo('disco', () => this.revisarDisco()), REVISION_DISCO_MS))
+    this.revisarRequisitos()
+    this.temporizadores.push(setInterval(() => this.aSalvo('requisitos', () => this.revisarRequisitos()), 30_000))
     this.evento('sistema', `La oficina abrió con ${this.defs.length - 1} empleados`)
     if (this.modoSeguro) {
       this.evento('sistema', 'Modo seguro: sin comandos propios, webhook, horarios ni otras oficinas del archivo del proyecto')
@@ -175,6 +177,28 @@ export class Oficina extends EventEmitter {
       const michael = this.def(ID_MICHAEL)
       if (michael) void this.iniciarAgente(michael)
     }
+  }
+
+  private aSalvo(que: string, fn: () => void): void {
+    try {
+      fn()
+    } catch (err) {
+      console.error(`Fallo en la vuelta de ${que}:`, err)
+    }
+  }
+
+  /** Claude Code y git: si faltan, la interfaz dice cómo instalarlos (y deja de avisar cuando aparecen). */
+  private revisarRequisitos(): void {
+    this.actualizarSistema({ requisitos: requisitos() })
+  }
+
+  actualizarSistema(cambios: Partial<EstadoSistema>): void {
+    this.sistema = { ...this.sistema, ...cambios }
+    this.emitir('sistema')
+  }
+
+  sistemaActual(): EstadoSistema {
+    return this.sistema
   }
 
   apagar(): void {
@@ -233,7 +257,8 @@ export class Oficina extends EventEmitter {
       actividad: this.actividad,
       ajustes: this.ajustesActuales,
       temporales: this.temporales.todos(),
-      plan: this.plan
+      plan: this.plan,
+      sistema: this.sistema
     }
   }
 
@@ -300,6 +325,10 @@ export class Oficina extends EventEmitter {
     } else if (!this.sesiones.activa(def.id)) {
       rt.herramienta = undefined
     }
+    if (this.sesiones.activa(def.id) && this.sesiones.edad(def.id) > 15_000) {
+      this.fallosSeguidos.delete(def.id)
+      this.promptInicial.delete(def.id)
+    }
     const anterior = rt.estado
     rt.estado = this.calcularEstado(def)
     if (rt.estado === 'trabajando' || rt.estado === 'esperando') rt.ultimaActividad = Date.now()
@@ -357,6 +386,8 @@ export class Oficina extends EventEmitter {
       if (!this.sesiones.activa(def.id)) {
         if (this.arrancando.has(def.id)) continue
         if ((this.errores.get(def.id) ?? 0) > Date.now() - MS_ESPERA_TRAS_ERROR) continue
+        // Tras tres fallos seguidos espera a que lo inicies tú (los mensajes siguen en su cola).
+        if ((this.fallosSeguidos.get(def.id) ?? 0) >= 3) continue
         // Claude Code recibe el primer mensaje como prompt inicial; las demas lo reciben tecleado.
         const primero = def.proveedor === 'claude' ? cola.shift() : undefined
         void this.iniciarAgente(def, primero)
@@ -382,6 +413,8 @@ export class Oficina extends EventEmitter {
   ): string[] {
     const [, ...args] = comandoBase(def, this.ajustesActuales.modoPermisos)
     if (def.proveedor === 'claude' && sesionId) {
+      // Va a la línea de comandos: solo un UUID (un valor con guion sería otra opción).
+      if (!ID_CONVERSACION.test(sesionId)) throw new Error('El id de la conversación no es válido.')
       if (plugin) args.push('--plugin-dir', plugin)
       args.push('--settings', this.consumo.settings(def.id))
       args.push(
@@ -402,6 +435,18 @@ export class Oficina extends EventEmitter {
     if (this.sesiones.activa(def.id) || this.arrancando.has(def.id)) return
     this.arrancando.add(def.id)
     const rt = this.runtime(def.id)
+    // Si no arranca, el mensaje que lo iba a despertar vuelve a su cola.
+    const fallo = (motivo: string): void => {
+      this.errores.set(def.id, Date.now())
+      rt.estado = 'error'
+      if (prompt) this.cola(def.id).unshift(prompt)
+      this.fallosSeguidos.set(def.id, (this.fallosSeguidos.get(def.id) ?? 0) + 1)
+      const previo = this.ultimoFallo.get(def.id)
+      if (previo?.motivo !== motivo || Date.now() - previo.ts > 5 * 60_000) {
+        this.ultimoFallo.set(def.id, { motivo, ts: Date.now() })
+        this.evento('sesion', `${def.nombre} no pudo iniciar: ${motivo}`, def.id)
+      }
+    }
     try {
       let cwd = def.cwd
       if (def.aislamientoGit) {
@@ -412,22 +457,19 @@ export class Oficina extends EventEmitter {
         }
       }
       const [comando] = comandoBase(def, this.ajustesActuales.modoPermisos)
-      const fallo = (motivo: string): void => {
-        this.errores.set(def.id, Date.now())
-        rt.estado = 'error'
-        this.evento('sesion', `${def.nombre} no pudo iniciar: ${motivo}`, def.id)
-      }
       if (!existsSync(cwd)) return fallo(`la carpeta ${cwd} no existe`)
       if (!comando) return fallo('no tiene comando configurado')
+      if (!rutaEjecutable(comando, cwd)) {
+        return fallo(
+          def.proveedor === 'claude'
+            ? 'no encuentro Claude Code en esta Mac. Instálalo (el aviso de arriba te lleva a la guía), ábrelo una vez en la Terminal y vuelve a intentarlo.'
+            : `no encuentro «${comando}» en esta Mac.`
+        )
+      }
 
       let sesionId: string | undefined
       const reanudarId = continuar ? rt.sesionId : def.reanudar
       if (def.proveedor === 'claude') sesionId = reanudarId || randomUUID()
-      else if (!continuar) {
-        this.cola(def.id).unshift(
-          `${instruccionesPara(def, this.defs, this.hive.raiz, this.ajustesActuales.enfoque)}\n\n${prompt ?? 'Confirma en una línea que leíste esto y espera instrucciones.'}`
-        )
-      }
       let plugin: string | undefined
       if (def.proveedor === 'claude' && def.skills?.length) {
         await this.biblioteca.asegurar(def.skills)
@@ -435,11 +477,25 @@ export class Oficina extends EventEmitter {
         if (armado?.ruta) plugin = armado.ruta
         if (armado?.faltan.length) this.evento('sistema', `${def.nombre} arranca sin: ${armado.faltan.join(', ')} (no están instaladas)`, def.id)
       }
-      const args = this.argumentos(def, prompt, sesionId, !!reanudarId, plugin)
+      let args: string[]
+      try {
+        args = this.argumentos(def, prompt, sesionId, !!reanudarId, plugin)
+      } catch (err) {
+        return fallo((err as Error).message)
+      }
       const error = this.sesiones.iniciar(def.id, { comando, args, cwd })
       if (error) return fallo(error)
 
+      // Las demás CLI reciben las instrucciones tecleadas, como primer mensaje de su cola.
+      if (def.proveedor !== 'claude' && !continuar) {
+        this.cola(def.id).unshift(
+          `${instruccionesPara(def, this.defs, this.hive.raiz, this.ajustesActuales.enfoque)}\n\n${prompt ?? 'Confirma en una línea que leíste esto y espera instrucciones.'}`
+        )
+      }
+      if (prompt && def.proveedor === 'claude') this.promptInicial.set(def.id, prompt)
+      else this.promptInicial.delete(def.id)
       this.errores.delete(def.id)
+      this.ultimoFallo.delete(def.id)
       if (!continuar) Object.assign(rt, { llamadas: 0, tokens: 0, contexto: 0, costo: 0, herramienta: undefined })
       Object.assign(rt, { inicio: Date.now(), cwdReal: cwd, sesionId, limiteAlcanzado: false, estado: 'iniciando' })
       this.seguidores.get(def.id)?.detener()
@@ -460,6 +516,14 @@ export class Oficina extends EventEmitter {
   private alSalir(id: string, codigo: number): void {
     const pedida = this.detencionesPedidas.delete(id)
     const def = this.def(id)
+    const inicial = this.promptInicial.get(id)
+    this.promptInicial.delete(id)
+    const duro = Date.now() - (this.runtime(id).inicio ?? 0)
+    if (!pedida && codigo !== 0 && duro < 15_000) {
+      // Se cayó al arrancar (sin sesión iniciada, sin red…): su primer mensaje no se pierde.
+      if (inicial) this.cola(id).unshift(inicial)
+      this.fallosSeguidos.set(id, (this.fallosSeguidos.get(id) ?? 0) + 1)
+    }
     this.seguidores.get(id)?.detener()
     this.seguidores.delete(id)
     this.bloqueoEntrega.delete(id)
@@ -546,7 +610,9 @@ export class Oficina extends EventEmitter {
       const respuesta = await fetch(destino, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${companero.clave}` },
-        body: JSON.stringify({ para: 'michael', texto: m.cuerpo, de: `${this.nombreDe(m.de)} (oficina de ${userInfo().username})` })
+        // El nombre de la carpeta del proyecto, no el usuario de la Mac.
+        body: JSON.stringify({ para: 'michael', texto: m.cuerpo, de: `${this.nombreDe(m.de)} (oficina «${basename(this.raiz)}»)` }),
+        signal: AbortSignal.timeout(15_000)
       })
       if (!respuesta.ok) throw new Error(`respondió ${respuesta.status}`)
       this.evento('mensaje', `${this.nombreDe(m.de)} → oficina de ${companero.nombre}: ${resumir(m.cuerpo, 60)}`, m.de)
@@ -565,6 +631,21 @@ export class Oficina extends EventEmitter {
     this.encolar(para, `Mensaje de ${origen} (externo): ${texto}`)
     this.evento('mensaje', `${origen} (externo) → ${def.nombre}: ${resumir(texto, 60)}`, para)
     return { id: msg.id }
+  }
+
+  /**
+   * Un temporal es `claude -p`, que se salta la pregunta de confianza de Claude
+   * Code: solo donde ya la aceptaste, y nunca en modo seguro.
+   */
+  private comprobarCarpetaTemporal(cwd: string): void {
+    if (this.modoSeguro) {
+      throw new Error('En modo seguro no hay temporales: Claude Code no te preguntaría si confías en esta carpeta.')
+    }
+    if (!claudeConfiaEn(cwd)) {
+      throw new Error(
+        `Claude Code aún no confía en ${cwd}. Inicia un agente en esa carpeta (o abre claude ahí en la Terminal) y responde que confías; después ya puedes usar temporales.`
+      )
+    }
   }
 
   private dispararHorario(h: Horario): void {
@@ -732,7 +813,8 @@ Todo en español.`
     const entorno = { ...process.env }
     delete entorno.CLAUDECODE
     const salida = await new Promise<string>((resolve, reject) => {
-      execFile('claude', ['-p', prompt], { cwd: this.raiz, env: entorno, timeout: 180_000, maxBuffer: 1024 * 1024 }, (err, stdout) =>
+      // Fuera del proyecto: `claude -p` no pregunta si confías en la carpeta.
+      execFile('claude', ['-p', prompt], { cwd: carpetaNeutra(), env: entorno, timeout: 180_000, maxBuffer: 1024 * 1024 }, (err, stdout) =>
         err ? reject(new Error(`claude -p falló: ${err.message}`)) : resolve(stdout)
       )
     })
@@ -768,7 +850,7 @@ Todo en español.`
 
   private async abrirEnIde(cwd: string): Promise<void> {
     // En Windows los editores son .cmd y harían falta una shell: mejor abrir la carpeta.
-    const editor = process.platform === 'win32' ? undefined : ['code', 'cursor', 'codium'].find((e) => enPath(e))
+    const editor = process.platform === 'win32' ? undefined : ['code', 'cursor', 'codium'].find((e) => rutaEjecutable(e))
     if (editor) {
       spawn(editor, [cwd], { detached: true, stdio: 'ignore' }).unref()
       return
@@ -784,6 +866,8 @@ Todo en español.`
         const def = this.def(a.id)
         if (def) {
           this.errores.delete(def.id)
+          this.fallosSeguidos.delete(def.id)
+          this.ultimoFallo.delete(def.id)
           await this.iniciarAgente(def)
         }
         return
@@ -829,6 +913,8 @@ Todo en español.`
       case 'agente:motor': {
         const def = this.def(a.id)
         if (!def) return
+        if (!PROVEEDORES.some((p) => p.id === a.proveedor)) throw new Error('Ese motor no existe.')
+        if (a.modelo && !NOMBRE_MODELO.test(a.modelo)) throw new Error('Ese nombre de modelo no es válido.')
         def.proveedor = a.proveedor
         def.modelo = a.modelo
         this.runtime(def.id).ventana = ventanaDe(a.modelo)
@@ -922,6 +1008,7 @@ Todo en español.`
         if (!this.def(a.id)) throw new Error('Ese agente no existe.')
         return this.hive.leerTexto(this.hive.rutaMemoria(a.id))
       case 'temporal:crear': {
+        if (a.modelo && !NOMBRE_MODELO.test(a.modelo)) throw new Error('Ese nombre de modelo no es válido.')
         const t = this.temporales.crear(a.prompt, a.cwd || this.raiz, a.modelo, USUARIO)
         this.evento('temporal', `Nuevo temporal: ${resumir(a.prompt, 60)}`)
         return t

@@ -8,6 +8,8 @@ import { costoDe, type Uso } from '../shared/motores'
 const INTERVALO_MS = 700
 const MAX_TRAZAS = 300
 const TROZO = 1024 * 1024
+/** Por vuelta: una conversación retomada de decenas de MB se lee en varias, sin congelar la app. */
+const MAX_POR_VUELTA = 4 * TROZO
 
 export function carpetaClaude(): string {
   return process.env.CLAUDE_CONFIG_DIR || join(homedir(), '.claude')
@@ -146,11 +148,17 @@ export class SeguidorTranscripcion extends EventEmitter {
       return
     }
     if (tamano <= this.desplazamiento) return
-    const fd = openSync(this.ruta, 'r')
-    let cambio = false
+    let fd: number
     try {
-      while (this.desplazamiento < tamano) {
-        const largo = Math.min(TROZO, tamano - this.desplazamiento)
+      fd = openSync(this.ruta, 'r')
+    } catch {
+      return
+    }
+    let cambio = false
+    const hasta = Math.min(tamano, this.desplazamiento + MAX_POR_VUELTA)
+    try {
+      while (this.desplazamiento < hasta) {
+        const largo = Math.min(TROZO, hasta - this.desplazamiento)
         const buffer = Buffer.alloc(largo)
         const leidos = readSync(fd, buffer, 0, largo, this.desplazamiento)
         if (leidos <= 0) break

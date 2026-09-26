@@ -1,4 +1,5 @@
-import { app, BrowserWindow, dialog, screen } from 'electron'
+import { execFile } from 'node:child_process'
+import { app, BrowserWindow, dialog, screen, shell } from 'electron'
 import { existsSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { IPC } from '../shared/ipc-channels'
@@ -10,23 +11,34 @@ import { Capacidades, motoresInstalados } from './capacidades'
 import { Grapadora } from './grapadora'
 import { carpetaDelProyecto, heredarPathDeLaShell, pedirCarpeta, reabrirEn, recordarProyecto } from './entorno'
 import { Dictado, registrarEsquemaModelos } from './dictado'
-import { endurecer } from './seguridad'
+import { bloquearDepuracionExterna, endurecer, urlDesarrollo } from './seguridad'
 import { listarConversaciones, listarProyectosClaude } from './claudeProyectos'
-import { recordarConfianza, revisarConfianza } from './confianza'
+import { recordarConfianza, revisarConfianza, type Decision } from './confianza'
+import { Actualizaciones, PAGINA_DESCARGAS } from './actualizaciones'
+import { avisarErroresEn, iniciarRegistro } from './registro'
 
+const GUIA_CLAUDE = 'https://code.claude.com/docs/en/setup'
+
+bloquearDepuracionExterna()
+iniciarRegistro()
 // Dictado: los modelos de Whisper llegan por modelos:// y usan varios hilos (SharedArrayBuffer).
 registrarEsquemaModelos()
 app.commandLine.appendSwitch('enable-features', 'SharedArrayBuffer')
+
+// Una sola oficina a la vez: dos escribirían el mismo .hive y pelearían por el puerto del webhook.
+const unica = app.requestSingleInstanceLock()
+if (!unica) app.quit()
 
 let ventanaPrincipal: BrowserWindow | null = null
 let oficina: Oficina
 let capacidades: Capacidades
 let grapadora: Grapadora
 let dictado: Dictado
+const actualizaciones = new Actualizaciones((a) => oficina?.actualizarSistema({ actualizacion: a }))
 const preload = join(__dirname, '../preload/index.js')
 
 function urlRenderer(pagina: string): { url?: string; archivo?: string } {
-  const dev = process.env['ELECTRON_RENDERER_URL']
+  const dev = urlDesarrollo()
   return dev ? { url: `${dev}/${pagina}` } : { archivo: join(__dirname, '../renderer', pagina) }
 }
 
@@ -113,10 +125,19 @@ async function ejecutarExtra(a: Accion): Promise<unknown> {
       if (ruta && ruta !== oficina.raiz) reabrirEn(ruta)
       return
     }
+    // Solo direcciones fijas: la interfaz no decide qué se abre en el navegador.
+    case 'sistema:abrir':
+      return shell.openExternal(a.destino === 'claude' ? GUIA_CLAUDE : (oficina.sistemaActual().actualizacion?.url ?? PAGINA_DESCARGAS))
+    case 'sistema:instalarGit':
+      // Abre el instalador de Apple de las herramientas de línea de comandos (trae git).
+      execFile('/usr/bin/xcode-select', ['--install'], () => undefined)
+      return
     default:
       throw new Error(`Acción no disponible: ${a.tipo}`)
   }
 }
+
+let recargas: number[] = []
 
 async function crearVentana(): Promise<void> {
   const pantalla = screen.getPrimaryDisplay().workAreaSize
@@ -138,41 +159,74 @@ async function crearVentana(): Promise<void> {
     if (process.platform !== 'darwin') grapadora.cerrar()
   })
   ventana.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
+  // Si la interfaz se cae (memoria, GPU…), se recarga en vez de quedar en blanco; no más de 3 veces por minuto.
+  ventana.webContents.on('render-process-gone', (_e, detalles) => {
+    console.error('La interfaz se cerró:', detalles.reason, detalles.exitCode)
+    if (detalles.reason === 'clean-exit' || ventana.isDestroyed()) return
+    recargas = recargas.filter((t) => Date.now() - t < 60_000)
+    if (recargas.length >= 3) return
+    recargas.push(Date.now())
+    ventana.webContents.reload()
+  })
 
   const destino = urlRenderer('index.html')
   if (destino.url) await ventana.loadURL(destino.url)
   else await ventana.loadFile(destino.archivo!)
 }
 
+async function noAbrio(raiz: string, motivo: string): Promise<string | null> {
+  const r = await dialog.showMessageBox({
+    type: 'error',
+    message: 'minioffice no pudo abrir el proyecto',
+    detail: `${raiz}\n\n${motivo}`,
+    buttons: ['Elegir otra carpeta', 'Salir'],
+    defaultId: 0,
+    cancelId: 1,
+    noLink: true
+  })
+  return r.response === 0 ? pedirCarpeta('Abrir otro proyecto') : null
+}
+
 app.whenReady().then(async () => {
+  if (!unica) return
   endurecer()
-  if (app.isPackaged) heredarPathDeLaShell()
+  // El PATH de tu shell se lee mientras se abre el proyecto (hace falta para lanzar los agentes).
+  const pathListo = app.isPackaged ? heredarPathDeLaShell() : Promise.resolve()
   dictado = new Dictado()
   dictado.iniciar()
-  const raiz = await carpetaDelProyecto()
-  if (!raiz) {
-    app.quit()
-    return
+
+  // Si el proyecto no abre (o cancelas el aviso de confianza), puedes elegir otro sin quedarte atascado.
+  let raiz = await carpetaDelProyecto()
+  let decision: Decision = 'normal'
+  for (;;) {
+    if (!raiz) {
+      app.quit()
+      return
+    }
+    decision = await revisarConfianza(raiz)
+    if (decision === 'cancelar') {
+      raiz = await pedirCarpeta('Abrir otro proyecto')
+      continue
+    }
+    try {
+      montar(raiz, decision === 'seguro')
+      break
+    } catch (err) {
+      console.error('No se pudo abrir el proyecto', raiz, err)
+      raiz = await noAbrio(raiz, (err as Error).message)
+    }
   }
-  const decision = await revisarConfianza(raiz)
-  if (decision === 'cancelar') {
-    app.quit()
-    return
-  }
-  try {
-    montar(raiz, decision === 'seguro')
-    // Lo que minioffice acaba de crear o completar en el proyecto es de confianza.
-    if (decision === 'normal') recordarConfianza(raiz)
-    recordarProyecto(raiz)
-  } catch (err) {
-    dialog.showErrorBox('minioffice no pudo abrir el proyecto', `${raiz}\n\n${(err as Error).message}`)
-    app.quit()
-    return
-  }
+  // Lo que minioffice acaba de crear o completar en el proyecto es de confianza.
+  if (decision === 'normal') recordarConfianza(raiz)
+  recordarProyecto(raiz)
+
+  avisarErroresEn((texto) => oficina.registrarEvento('sistema', texto))
   registrarIpc(oficina, (v) => !grapadora.esVentana(v))
+  await pathListo
   await oficina.iniciar()
   await crearVentana()
   grapadora.iniciar()
+  actualizaciones.iniciar()
 
   // macOS: la app sigue viva sin ventanas y se reabre desde el dock.
   app.on('activate', () => {
@@ -180,11 +234,20 @@ app.whenReady().then(async () => {
   })
 })
 
+app.on('second-instance', () => {
+  if (oficina) enfocar()
+})
+
+app.on('child-process-gone', (_e, detalles) => {
+  if (detalles.reason !== 'clean-exit') console.error('Proceso de Chromium caído:', detalles.type, detalles.reason)
+})
+
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
 })
 
 app.on('will-quit', () => {
+  actualizaciones.detener()
   grapadora?.cerrar()
   oficina?.apagar()
 })

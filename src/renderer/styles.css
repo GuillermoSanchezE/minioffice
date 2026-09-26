@@ -3135,3 +3135,35 @@ input[type='range'] {
   font-size: 11px;
   cursor: help;
 }
+
+/* Avisos del sistema (falta Claude Code o git, versión nueva): flotan bajo la barra. */
+.avisos-sistema {
+  position: fixed;
+  top: 46px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(760px, calc(100vw - 32px));
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  z-index: 60;
+}
+
+.aviso-sistema {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px 8px 14px;
+  border: 1px solid var(--mostaza-oscuro);
+  border-radius: 8px;
+  background: var(--mostaza-claro);
+  color: var(--tinta);
+  font-size: 13px;
+  line-height: 1.4;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+}
+
+.aviso-sistema.importante {
+  border-color: var(--rojo);
+  background: var(--rojo-claro);
+}

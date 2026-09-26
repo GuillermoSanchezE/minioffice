@@ -2,9 +2,13 @@ import { existsSync, mkdirSync } from 'node:fs'
 import { basename, dirname, join, relative } from 'node:path'
 import simpleGit from 'simple-git'
 import type { EstadoGit } from '../shared/types'
+import { gitDisponible } from './requisitos'
+
+const SIN_GIT = 'git no está instalado en esta Mac (instala las herramientas de desarrollo de Apple con «xcode-select --install»).'
 
 export async function estadoGit(cwd: string): Promise<EstadoGit> {
   if (!existsSync(cwd)) return { esRepo: false, cambios: [], log: [], diffstat: '', error: 'La carpeta no existe.' }
+  if (!gitDisponible()) return { esRepo: false, cambios: [], log: [], diffstat: '', error: SIN_GIT }
   const git = simpleGit(cwd)
   try {
     if (!(await git.checkIsRepo())) return { esRepo: false, cambios: [], log: [], diffstat: '' }
@@ -26,6 +30,7 @@ export async function estadoGit(cwd: string): Promise<EstadoGit> {
  * en la rama minioffice/<id>. Devuelve la carpeta donde debe trabajar.
  */
 export async function worktreePara(cwd: string, agentId: string): Promise<string> {
+  if (!gitDisponible()) throw new Error(SIN_GIT)
   const git = simpleGit(cwd)
   if (!(await git.checkIsRepo())) throw new Error('La carpeta no es un repositorio git.')
   const raiz = (await git.revparse(['--show-toplevel'])).trim()

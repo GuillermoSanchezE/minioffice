@@ -154,6 +154,15 @@ export const PROVEEDORES: Proveedor[] = [
   }
 ]
 
+/** Id de una conversación de Claude Code (para retomarla con --resume). */
+export const ID_CONVERSACION = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/**
+ * Nombre de modelo que se le pasa a la CLI. Nunca empieza por guion: la CLI lo
+ * tomaría por otra opción.
+ */
+export const NOMBRE_MODELO = /^[A-Za-z0-9][A-Za-z0-9._:/@[\]-]{0,99}$/
+
 /** El motor de minioffice; los demás se agregan en Ajustes → Motores de IA. */
 export const MOTOR_PRINCIPAL: ProveedorId = 'claude'
 

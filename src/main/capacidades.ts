@@ -21,16 +21,19 @@ interface Entrada {
 }
 
 /**
+ * Versiones fijadas de los MCP que se ejecutan con npx (antes @latest: una versión
+ * nueva y maliciosa se habría instalado sola). Súbelas a mano tras revisarlas.
+ *
  * Catalogo curado de MCP (se registran con `claude mcp add`) y motores (CLIs
  * de npm). Las skills tienen su propio catalogo en shared/skills.ts y se
  * asignan por agente desde la biblioteca de minioffice.
  */
 const CATALOGO: Entrada[] = [
-  { tipo: 'mcp', nombre: 'playwright', categoria: 'Navegador', autor: 'Microsoft', descripcion: 'Controla un navegador: navegar, hacer clic, capturar.', mcp: ['playwright', '--', 'npx', '-y', '@playwright/mcp@latest'] },
-  { tipo: 'mcp', nombre: 'chrome-devtools', categoria: 'Navegador', autor: 'Google', descripcion: 'DevTools de Chrome: consola, red y rendimiento.', mcp: ['chrome-devtools', '--', 'npx', '-y', 'chrome-devtools-mcp@latest'] },
+  { tipo: 'mcp', nombre: 'playwright', categoria: 'Navegador', autor: 'Microsoft', descripcion: 'Controla un navegador: navegar, hacer clic, capturar.', mcp: ['playwright', '--', 'npx', '-y', '@playwright/mcp@0.0.82'] },
+  { tipo: 'mcp', nombre: 'chrome-devtools', categoria: 'Navegador', autor: 'Google', descripcion: 'DevTools de Chrome: consola, red y rendimiento.', mcp: ['chrome-devtools', '--', 'npx', '-y', 'chrome-devtools-mcp@1.10.1'] },
   { tipo: 'mcp', nombre: 'context7', categoria: 'Documentación', autor: 'Upstash', descripcion: 'Documentación al día de miles de librerías.', mcp: ['--transport', 'http', 'context7', 'https://mcp.context7.com/mcp'] },
-  { tipo: 'mcp', nombre: 'memory', categoria: 'Memoria', autor: 'Model Context Protocol', descripcion: 'Grafo de conocimiento persistente entre sesiones.', mcp: ['memory', '--', 'npx', '-y', '@modelcontextprotocol/server-memory'] },
-  { tipo: 'mcp', nombre: 'sequential-thinking', categoria: 'Razonamiento', autor: 'Model Context Protocol', descripcion: 'Piensa problemas largos paso a paso.', mcp: ['sequential-thinking', '--', 'npx', '-y', '@modelcontextprotocol/server-sequential-thinking'] },
+  { tipo: 'mcp', nombre: 'memory', categoria: 'Memoria', autor: 'Model Context Protocol', descripcion: 'Grafo de conocimiento persistente entre sesiones.', mcp: ['memory', '--', 'npx', '-y', '@modelcontextprotocol/server-memory@2026.8.31'] },
+  { tipo: 'mcp', nombre: 'sequential-thinking', categoria: 'Razonamiento', autor: 'Model Context Protocol', descripcion: 'Piensa problemas largos paso a paso.', mcp: ['sequential-thinking', '--', 'npx', '-y', '@modelcontextprotocol/server-sequential-thinking@2026.8.31'] },
   { tipo: 'mcp', nombre: 'notion', categoria: 'Conexiones', autor: 'Notion', descripcion: 'Lee y escribe páginas de Notion (te pide iniciar sesión).', mcp: ['--transport', 'http', 'notion', 'https://mcp.notion.com/mcp'] },
   { tipo: 'mcp', nombre: 'sentry', categoria: 'Conexiones', autor: 'Sentry', descripcion: 'Errores y trazas de Sentry (te pide iniciar sesión).', mcp: ['--transport', 'http', 'sentry', 'https://mcp.sentry.dev/mcp'] },
   ...PROVEEDORES.filter((p) => p.instalar).map(

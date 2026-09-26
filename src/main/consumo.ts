@@ -1,4 +1,5 @@
-import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, statSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs'
+import { escribirAtomico } from './archivos'
 import { join } from 'node:path'
 import type { EstadoPlan, HoraConsumo, LimitePlan } from '../shared/types'
 import type { UsoMensaje } from './transcripcion'
@@ -149,9 +150,12 @@ export class Consumo {
     const limite = Date.now() - DIAS_GUARDADOS * 24 * HORA_MS
     for (const clave of Object.keys(this.datos.horas)) if (Number(clave) < limite) delete this.datos.horas[clave]
     for (const [sesion, ts] of Object.entries(this.datos.marcas)) if (ts < limite) delete this.datos.marcas[sesion]
-    const temporal = `${this.archivo}.tmp`
-    writeFileSync(temporal, JSON.stringify(this.datos))
-    renameSync(temporal, this.archivo)
-    this.sucio = false
+    try {
+      escribirAtomico(this.archivo, JSON.stringify(this.datos))
+      this.sucio = false
+    } catch (err) {
+      // disco lleno: se reintenta en la próxima vuelta
+      console.error('No se pudo guardar el consumo:', (err as Error).message)
+    }
   }
 }

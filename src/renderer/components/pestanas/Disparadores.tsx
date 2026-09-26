@@ -220,7 +220,12 @@ function Webhooks({ ajustes }: { ajustes: Ajustes }): JSX.Element {
           aceptar desde mi red local
         </label>
       </div>
-      {ajustes.webhookRed && <p className="alerta pequeno">Cualquiera en tu red que tenga la clave podrá mandar mensajes a tus agentes.</p>}
+      {ajustes.webhookRed && (
+        <p className="alerta pequeno">
+          Cualquiera en tu red que tenga la clave podrá mandar mensajes a tus agentes, y la conexión no va cifrada: actívalo solo en redes de
+          confianza (tu casa u oficina), nunca en una Wi-Fi pública.
+        </p>
+      )}
       <div className="fila">
         <span className="suave">clave</span>
         <code className="mono recorte crece">{verClave ? ajustes.webhookClave : '•'.repeat(24)}</code>

@@ -1,6 +1,15 @@
 name: Instalador para Mac
 
 # Se lanza a mano desde la pestaña Actions o al subir una etiqueta v* (p. ej. v0.4.0).
+#
+# Firma y notarización (opcional, recomendado si otros van a instalarla): añade en
+# Settings → Secrets and variables → Actions estos secretos de tu cuenta de Apple Developer:
+#   MAC_CERT_P12_BASE64  certificado "Developer ID Application" exportado (.p12) en base64
+#   MAC_CERT_PASSWORD    la contraseña de ese .p12
+#   APPLE_API_KEY_P8     el contenido del archivo AuthKey_XXXX.p8 de App Store Connect
+#   APPLE_API_KEY_ID     el id de esa clave
+#   APPLE_API_ISSUER     el Issuer ID de App Store Connect
+# Sin ellos se firma ad hoc: sirve en tu Mac, pero Gatekeeper la bloquea al descargarla.
 on:
   workflow_dispatch:
   push:
@@ -12,24 +21,62 @@ permissions:
 jobs:
   mac:
     runs-on: macos-latest
+    timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
+      # Acciones fijadas a un commit (una etiqueta se puede mover; este workflow publica versiones).
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
           cache: npm
 
       - run: npm ci
 
-      - name: Revisar tipos
-        run: npm run typecheck
+      - name: Revisar tipos y pruebas unitarias
+        run: npm run typecheck && npm test
+
+      - name: Clave de notarización
+        env:
+          APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
+        run: |
+          if [ -n "$APPLE_API_KEY_P8" ]; then
+            printf '%s' "$APPLE_API_KEY_P8" > "$RUNNER_TEMP/AuthKey.p8"
+            echo "APPLE_API_KEY=$RUNNER_TEMP/AuthKey.p8" >> "$GITHUB_ENV"
+          fi
 
       - name: Construir el .dmg (Apple Silicon e Intel)
+        env:
+          CSC_LINK: ${{ secrets.MAC_CERT_P12_BASE64 }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CERT_PASSWORD }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          # Con Developer ID, las claves del webhook van al Llavero.
+          MAIN_VITE_FIRMADA: ${{ secrets.MAC_CERT_P12_BASE64 != '' && '1' || '' }}
         run: npm run dist:mac
 
-      - name: Comprobar la firma ad hoc
-        run: codesign --verify --deep --verbose=2 dist/mac-arm64/minioffice.app
+      - name: Comprobar firma, Hardened Runtime y Gatekeeper
+        run: |
+          for APP in dist/mac-arm64/minioffice.app dist/mac/minioffice.app; do
+            codesign --verify --deep --strict --verbose=2 "$APP"
+            INFO=$(codesign -dv "$APP" 2>&1)
+            echo "$INFO" | grep -E "flags=|TeamIdentifier"
+            echo "$INFO" | grep -q "runtime" || { echo "::error::$APP va sin Hardened Runtime"; exit 1; }
+            if echo "$INFO" | grep -q "TeamIdentifier=not set"; then
+              echo "::warning::$APP va con firma ad hoc: Gatekeeper la bloqueará al descargarla. Configura los secretos de firma (ver arriba)."
+            else
+              spctl -a -vvv -t exec "$APP"
+              xcrun stapler validate "$APP"
+            fi
+          done
+
+      - name: spawn-helper ejecutable (sin él no hay terminales)
+        run: |
+          test -x dist/mac-arm64/minioffice.app/Contents/Resources/app.asar.unpacked/node_modules/node-pty/prebuilds/darwin-arm64/spawn-helper
+          test -x dist/mac/minioffice.app/Contents/Resources/app.asar.unpacked/node_modules/node-pty/prebuilds/darwin-x64/spawn-helper
+
+      - name: Prueba de humo de la app tal cual se distribuye
+        run: node pruebas/humo-mac.cjs dist/mac-arm64/minioffice.app/Contents/MacOS/minioffice arm64 1 --comprobar-bloqueo
 
       - name: Comprobar el icono y la ventana del instalador
         run: |
@@ -41,14 +88,21 @@ jobs:
           tiffutil -info /tmp/instalador/.background.tiff | grep -i "width"
           hdiutil detach /tmp/instalador -quiet
 
-      - uses: actions/upload-artifact@v4
+      - name: Sumas SHA-256 (para comprobar la descarga)
+        run: cd dist && shasum -a 256 *.dmg | tee SHA256SUMS.txt
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: minioffice-mac
-          path: dist/*.dmg
+          path: |
+            dist/*.dmg
+            dist/SHA256SUMS.txt
           retention-days: 30
 
       - name: Publicar en Releases (solo con etiqueta)
         if: startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
-          files: dist/*.dmg
+          files: |
+            dist/*.dmg
+            dist/SHA256SUMS.txt

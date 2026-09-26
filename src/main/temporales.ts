@@ -16,10 +16,13 @@ const MAX_LISTA = 40
 export class Temporales extends EventEmitter {
   private lista: Temporal[] = []
   private procesos = new Map<string, ChildProcess>()
+  private avisoPendiente: NodeJS.Timeout | null = null
 
   constructor(
     private maximo: () => number,
-    private modoPermisos: () => ModoPermisos
+    private modoPermisos: () => ModoPermisos,
+    /** Lanza un error si en esa carpeta no se puede usar `claude -p`. */
+    private comprobarCarpeta: (cwd: string) => void
   ) {
     super()
   }
@@ -35,6 +38,7 @@ export class Temporales extends EventEmitter {
   crear(prompt: string, cwd: string, modelo: string, origen: string): Temporal {
     if (!prompt.trim()) throw new Error('El temporal necesita una instrucción.')
     if (!existsSync(cwd)) throw new Error(`La carpeta ${cwd} no existe.`)
+    this.comprobarCarpeta(cwd)
     if (this.corriendo() >= this.maximo()) {
       throw new Error(`Ya hay ${this.corriendo()} temporales trabajando (máximo ${this.maximo()}).`)
     }
@@ -59,7 +63,7 @@ export class Temporales extends EventEmitter {
     this.procesos.set(temporal.id, proceso)
     const agregar = (trozo: Buffer): void => {
       temporal.salida = (temporal.salida + trozo.toString('utf-8')).slice(-MAX_SALIDA)
-      this.avisar()
+      this.avisarPronto()
     }
     proceso.stdout?.on('data', agregar)
     proceso.stderr?.on('data', agregar)
@@ -101,6 +105,14 @@ export class Temporales extends EventEmitter {
   }
 
   private avisar(): void {
+    if (this.avisoPendiente) clearTimeout(this.avisoPendiente)
+    this.avisoPendiente = null
     this.emit('cambio', [...this.lista])
+  }
+
+  /** La salida llega a trozos: se agrupa para no reenviar la lista entera en cada uno. */
+  private avisarPronto(): void {
+    if (this.avisoPendiente) return
+    this.avisoPendiente = setTimeout(() => this.avisar(), 300)
   }
 }

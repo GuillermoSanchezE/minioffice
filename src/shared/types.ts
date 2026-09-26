@@ -243,6 +243,12 @@ export interface HoraConsumo {
   modelos: Record<string, number>
 }
 
+/** Lo que la oficina necesita en esta Mac y si hay una versión nueva. */
+export interface EstadoSistema {
+  requisitos: { claude: boolean; git: boolean }
+  actualizacion: { version: string; url: string } | null
+}
+
 export interface Instantanea {
   version: string
   raiz: string
@@ -256,6 +262,7 @@ export interface Instantanea {
   ajustes: Ajustes
   temporales: Temporal[]
   plan: EstadoPlan | null
+  sistema: EstadoSistema
 }
 
 export type Dominio = Exclude<keyof Instantanea, 'version' | 'raiz' | 'modoSeguro'>
