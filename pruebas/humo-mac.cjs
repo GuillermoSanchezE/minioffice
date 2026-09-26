@@ -13,8 +13,9 @@ const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
 
-const [ejecutable, etiqueta, minutos = '3', ...resto] = process.argv.slice(2)
-if (!ejecutable || !etiqueta) {
+const [relativo, etiqueta, minutos = '3', ...resto] = process.argv.slice(2)
+const ejecutable = relativo && path.resolve(relativo)
+if (!relativo || !etiqueta) {
   console.error('Uso: node pruebas/humo-mac.cjs <ejecutable> <etiqueta> [minutos] [--rosetta]')
   process.exit(2)
 }
@@ -83,6 +84,8 @@ function falsos() {
     historial = (await win.evaluate(() => window.minioffice.accion({ tipo: 'terminal:historial', id: 'michael' }))) || ''
   }
   resultado.terminalFunciona = historial.includes(`${MARCA} listo`)
+  const instantanea = await win.evaluate(() => window.minioffice.estadoInicial())
+  resultado.actividadMichael = instantanea.actividad.filter((e) => e.agente === 'michael').map((e) => e.texto).slice(0, 5)
   resultado.procesosFalsosVivos = falsos().length
 
   // Memoria y CPU en reposo.

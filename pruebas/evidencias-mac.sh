@@ -50,15 +50,15 @@ for APP in "$@"; do
   echo "## Fusibles de Electron"
   npx --yes @electron/fuses read --app "$APP" 2>&1 | tail -12
 
-  echo "## Binarios Mach-O: arquitecturas | macOS mínimo | firma | ruta"
-  find "$APP" -type f \( -perm -u+x -o -name '*.node' -o -name '*.dylib' -o -name '*.so' \) -print0 |
+  echo "## Binarios Mach-O: arquitecturas | macOS mínimo | firma | permisos | ruta"
+  find "$APP" -type f -print0 |
     while IFS= read -r -d '' F; do
       file -b "$F" | grep -q 'Mach-O' || continue
       ARCHS=$(lipo -archs "$F" 2>/dev/null)
       MINOS=$(vtool -show-build "$F" 2>/dev/null | awk '/minos/ {print $2}' | sort -u | tr '\n' ' ')
       FIRMA=$(codesign -dv "$F" 2>&1 | grep -o 'flags=[^ ]*' || echo 'sin-firma')
-      echo "$ARCHS | $MINOS| $FIRMA | ${F#"$APP"/}"
-    done | sort -t'|' -k4
+      echo "$ARCHS | $MINOS| $FIRMA | $(stat -f %Sp "$F") | ${F#"$APP"/}"
+    done | sort -t'|' -k5
 
   echo "## node-pty desempaquetado"
   ls -la "$APP/Contents/Resources/app.asar.unpacked/node_modules/node-pty/prebuilds/"*/ 2>&1 | head -20

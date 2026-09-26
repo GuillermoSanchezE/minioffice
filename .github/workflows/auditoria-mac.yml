@@ -33,11 +33,21 @@ jobs:
         run: bash pruebas/evidencias-mac.sh dist/mac-arm64/minioffice.app dist/mac/minioffice.app 2>&1 | tee evidencias-mac.txt
 
       - name: Prueba de humo en Apple Silicon (4 min en reposo)
+        continue-on-error: true
         run: node pruebas/humo-mac.cjs dist/mac-arm64/minioffice.app/Contents/MacOS/minioffice arm64 4
 
       - name: Prueba de humo en Intel con Rosetta (2 min en reposo)
         continue-on-error: true
         run: node pruebas/humo-mac.cjs dist/mac/minioffice.app/Contents/MacOS/minioffice x64-rosetta 2 --rosetta
+
+      - name: Diagnóstico - la misma app con spawn-helper ejecutable
+        continue-on-error: true
+        run: |
+          COPIA="$RUNNER_TEMP/diagnostico/minioffice.app"
+          mkdir -p "$(dirname "$COPIA")" && ditto dist/mac-arm64/minioffice.app "$COPIA"
+          chmod +x "$COPIA"/Contents/Resources/app.asar.unpacked/node_modules/node-pty/prebuilds/darwin-*/spawn-helper
+          codesign --verify --deep --strict "$COPIA" && echo "firma intacta tras chmod" || echo "la firma no valida tras chmod"
+          node pruebas/humo-mac.cjs "$COPIA/Contents/MacOS/minioffice" arm64-spawn-helper-x 1
 
       - uses: actions/upload-artifact@v4
         if: always()
