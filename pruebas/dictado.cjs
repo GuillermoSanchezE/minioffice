@@ -8,7 +8,8 @@
  * Sin ejecutable usa el build de desarrollo (out/). Palabras esperadas en ESPERADO
  * (separadas por comas); aprueba si aparece al menos la mitad.
  */
-const { _electron: electron } = require('playwright-core')
+const { _electron: electron, chromium } = require('playwright-core')
+const { spawn } = require('node:child_process')
 const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
@@ -53,6 +54,42 @@ function wavSimple(ruta) {
   return destino
 }
 
+// Si la prueba falla, que no quede la app abierta.
+let alFallar = async () => {}
+
+async function abrirDesarrollo(banderas, raiz, proyecto) {
+  const app = await electron.launch({ args: [...banderas, path.join(raiz, 'out/main/index.js')], cwd: proyecto })
+  return { win: await app.firstWindow(), cerrar: () => app.close() }
+}
+
+/**
+ * La app instalada tiene apagado el depurador de Node (fusibles de Electron), así
+ * que se controla por el protocolo de depuración de Chromium.
+ */
+async function abrirInstalada(ejecutable, banderas, proyecto) {
+  const puerto = 9300 + Math.floor(Math.random() * 500)
+  const proceso = spawn(ejecutable, [...banderas, `--remote-debugging-port=${puerto}`, `--proyecto=${proyecto}`], { stdio: 'ignore' })
+  let navegador
+  for (let i = 0; i < 60 && !navegador; i++) {
+    await new Promise((r) => setTimeout(r, 500))
+    navegador = await chromium.connectOverCDP(`http://127.0.0.1:${puerto}`).catch(() => undefined)
+  }
+  if (!navegador) throw new Error('La app instalada no abrió el puerto de depuración.')
+  let win
+  for (let i = 0; i < 60 && !win; i++) {
+    win = navegador.contexts().flatMap((c) => c.pages()).find((p) => p.url().includes('index.html'))
+    if (!win) await new Promise((r) => setTimeout(r, 500))
+  }
+  if (!win) throw new Error('No apareció la ventana de la oficina.')
+  return {
+    win,
+    cerrar: async () => {
+      await navegador.close().catch(() => {})
+      proceso.kill()
+    }
+  }
+}
+
 ;(async () => {
   fs.mkdirSync(capturas, { recursive: true })
   const proyecto = fs.mkdtempSync(path.join(os.tmpdir(), 'mo-dictado-'))
@@ -65,13 +102,9 @@ function wavSimple(ruta) {
     '--disable-features=AudioServiceSandbox',
     '--no-sandbox'
   ]
-  const app = await electron.launch(
-    ejecutable
-      ? { executablePath: ejecutable, args: [...banderas, `--proyecto=${proyecto}`] }
-      : { args: [...banderas, path.join(raiz, 'out/main/index.js')], cwd: proyecto }
-  )
+  const { win, cerrar } = ejecutable ? await abrirInstalada(ejecutable, banderas, proyecto) : await abrirDesarrollo(banderas, raiz, proyecto)
+  alFallar = cerrar
   const errores = []
-  const win = await app.firstWindow()
   win.on('pageerror', (e) => errores.push(e.message))
   win.on('console', (m) => m.type() === 'error' && errores.push(m.text().slice(0, 300)))
   await win.setViewportSize({ width: 1400, height: 880 })
@@ -160,12 +193,13 @@ function wavSimple(ruta) {
   }
   fs.writeFileSync(path.join(capturas, `resultado-${modelo}${ejecutable ? '-app' : ''}.json`), JSON.stringify(resultado, null, 2))
   console.log(JSON.stringify(resultado, null, 2))
-  await app.close()
+  await cerrar()
   if (aciertos.length < Math.ceil(esperado.length / 2)) {
     console.error(`Whisper no entendió la frase (${aciertos.length}/${esperado.length} palabras).`)
     process.exit(1)
   }
-})().catch((e) => {
+})().catch(async (e) => {
   console.error('FALLO', e)
+  await alFallar()
   process.exit(1)
 })

@@ -11,6 +11,17 @@ files:
   - out/**
   - package.json
 
+# Fusibles de Electron: nadie puede arrancar la app como un Node cualquiera (y usar sus
+# permisos de micrófono y pantalla), ni pasarle NODE_OPTIONS o el depurador de Node.
+# El file:// con privilegios se queda: el dictado carga su motor WebAssembly así.
+electronFuses:
+  runAsNode: false
+  enableNodeOptionsEnvironmentVariable: false
+  enableNodeCliInspectArguments: false
+  enableEmbeddedAsarIntegrityValidation: true
+  onlyLoadAppFromAsar: true
+  grantFileProtocolExtraPrivileges: true
+
 # node-pty trae binarios para Mac (arm64 y x64) y usa N-API: no hace falta recompilar.
 npmRebuild: false
 asarUnpack:
