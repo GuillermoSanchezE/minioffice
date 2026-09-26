@@ -254,6 +254,33 @@ curl -X POST http://127.0.0.1:4717/mensaje \
 
 `GET /estado` devuelve quién está en la oficina y qué hace.
 
+## Seguridad
+
+- **Todo corre en tu Mac.** minioffice no tiene servidor; tu voz tampoco sale del equipo (Whisper
+  local). Los agentes usan tu Claude Code con el modo de permisos que elijas.
+- **Proyectos que no son tuyos.** El equipo (`minioffice.config.json`) y los ajustes
+  (`.hive/ajustes.json`) viven en el proyecto y pueden venir en un repositorio clonado. Si traen
+  comandos propios, argumentos, carpetas fuera del proyecto, webhook, otras oficinas, horarios
+  activos o modo *Sin permisos*, y no los escribió minioffice en esta Mac, al abrir sale un aviso
+  con la lista y puedes abrirlo en **modo seguro** (Claude Code sin extras; webhook, horarios y
+  otras oficinas apagados). Lo que cambias desde la app no vuelve a preguntar.
+- **La app instalada** tiene apagados los fusibles de Electron que permitirían usarla como un Node
+  cualquiera (`ELECTRON_RUN_AS_NODE`, `NODE_OPTIONS`, `--inspect`) y aprovechar sus permisos de
+  micrófono y pantalla; solo carga su código del asar, con verificación de integridad.
+- **Las ventanas** no navegan fuera de minioffice ni abren otras; el navegador solo concede
+  micrófono (nunca cámara) y copiar al portapapeles, y la API de la oficina solo atiende a páginas
+  propias. Política de contenido estricta (sin scripts en línea).
+- **El webhook** exige la clave (comparada en tiempo constante), limita el tamaño del mensaje y por
+  defecto solo escucha en `127.0.0.1`.
+- **`.hive/`** (clave del webhook, capturas, memorias) se excluye del git del proyecto con
+  `.git/info/exclude`.
+
+Lo que minioffice no puede evitar: un agente con permisos amplios hace lo que le pidan, y el
+contenido de un proyecto ajeno o de un webhook puede intentar engañarlo. En proyectos que no
+conoces usa el modo *Manual* o *Auto* (no *Sin permisos*). Las skills vienen de repositorios de
+terceros (ECC, UI/UX Pro Max, Anthropic) en su última versión. El .dmg va firmado ad hoc, sin
+notarizar.
+
 ## Estructura del código
 
 ```
@@ -272,6 +299,8 @@ src/
 │   ├── entorno.ts        carpeta del proyecto y PATH de la app instalada
 │   ├── claudeProyectos.ts tus proyectos y conversaciones de Claude Code (~/.claude/projects)
 │   ├── preferencias.ts   preferencias de tu Mac (motores de IA agregados)
+│   ├── confianza.ts      aviso y modo seguro para proyectos con ajustes ajenos
+│   ├── seguridad.ts      navegación, permisos del navegador y remitentes de la API
 │   ├── dictado.ts        modelos de Whisper (modelos://, caché en disco) y permiso del micrófono
 │   └── grapadora.ts      ventana flotante y capturas
 ├── preload/              API segura para la ventana (window.minioffice)
